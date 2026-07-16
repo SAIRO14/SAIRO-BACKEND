@@ -1,0 +1,8 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none
+
+tour-api:
+  base-url: https://apis.data.go.kr/B551011/KorService2
+  service-key: ${TOUR_API_SERVICE_KEY:test-placeholder}
