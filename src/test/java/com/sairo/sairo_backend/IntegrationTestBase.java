@@ -18,6 +18,5 @@ public abstract class IntegrationTestBase {
             new PostgreSQLContainer<>("pgvector/pgvector:pg16")
                     .withDatabaseName("sairo")
                     .withUsername("postgres")
-                    .withPassword("sairo1234")
-                    .withInitScript("db/schema.sql");
+                    .withPassword("sairo1234");
 }

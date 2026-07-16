@@ -2,6 +2,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/schema.sql
 
 tour-api:
   base-url: https://apis.data.go.kr/B551011/KorService2
