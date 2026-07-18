@@ -1,9 +1,15 @@
 package com.sairo.sairo_backend.analysis;
 
+import java.util.List;
+
 public record RecommendationResponse(
-        String spotId,
-        String name,
-        String regionName,
-        String imageUrl,
-        String reason
-) {}
+        List<String> moodTags,
+        List<SpotResult> spots
+) {
+    public record SpotResult(
+            String spotId,
+            String name,
+            String regionName,
+            String imageUrl
+    ) {}
+}

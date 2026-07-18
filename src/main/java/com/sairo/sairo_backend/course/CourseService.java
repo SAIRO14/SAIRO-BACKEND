@@ -82,12 +82,14 @@ public class CourseService {
         visited.add(current.getSpotId());
 
         while (sorted.size() < withCoords.size()) {
+            Spot finalCurrent = current;
             Spot next = withCoords.stream()
                     .filter(s -> !visited.contains(s.getSpotId()))
-                    .min(Comparator.comparingDouble(s -> euclidean(current, s)))
+                    .min(Comparator.comparingDouble(s -> euclidean(finalCurrent, s)))
                     .orElseThrow();
             sorted.add(next);
             visited.add(next.getSpotId());
+            current = next;
         }
 
         sorted.addAll(noCoords);

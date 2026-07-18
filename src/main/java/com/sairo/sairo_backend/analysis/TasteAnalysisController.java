@@ -4,7 +4,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -18,7 +17,7 @@ public class TasteAnalysisController {
     }
 
     @GetMapping("/recommendations")
-    public List<RecommendationResponse> recommend(@RequestParam String analysisId) {
+    public RecommendationResponse recommend(@RequestParam String analysisId) {
         return tasteAnalysisService.recommend(analysisId);
     }
 }

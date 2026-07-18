@@ -33,40 +33,42 @@ public class TasteAnalysisService {
         }
 
         float[] avgEmbedding = average(new ArrayList<>(embeddings.values()));
-        String analysisId = analysisStore.save(avgEmbedding);
 
         List<Photo> photos = photoRepository.findAllById(photoIds);
         List<String> moodTags = parseMoodTags(photos);
+        String analysisId = analysisStore.save(avgEmbedding, moodTags);
+
         String summary = buildSummary(moodTags);
 
         return new TasteAnalysisResponse(analysisId, moodTags, summary);
     }
 
-    public List<RecommendationResponse> recommend(String analysisId) {
-        float[] embedding = analysisStore.find(analysisId)
+    public RecommendationResponse recommend(String analysisId) {
+        AnalysisStore.AnalysisEntry entry = analysisStore.find(analysisId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "유효하지 않은 analysis_id입니다."));
 
         List<PhotoEmbeddingRepository.SimilarPhoto> similarPhotos =
-                embeddingRepository.findSimilarPhotos(embedding, SIMILAR_PHOTO_LIMIT);
+                embeddingRepository.findSimilarPhotos(entry.embedding(), SIMILAR_PHOTO_LIMIT);
 
         List<String> topRegions = extractTopRegions(similarPhotos);
-        if (topRegions.isEmpty()) return Collections.emptyList();
 
-        return topRegions.stream()
+        List<RecommendationResponse.SpotResult> spots = topRegions.stream()
                 .flatMap(region -> spotRepository.findByRegionContaining(region, SPOTS_PER_REGION).stream()
-                        .map(spot -> toResponse(spot, region)))
+                        .map(spot -> new RecommendationResponse.SpotResult(
+                                spot.getSpotId(), spot.getName(), spot.getRegionName(), spot.getImageUrl())))
                 .collect(Collectors.toList());
+
+        return new RecommendationResponse(entry.moodTags(), spots);
     }
 
-    // ── 데이터 형식 의존 메서드 ─────────────────────────────────────────────
-    // TODO: deduped_results.json의 실제 location 형식 확인 후 수정
-    // 현재: location 필드 자체를 region 키로 사용
+    // location 형식: "경상북도 안동", "제주도" 등 — 첫 번째 공백 이전 단어가 광역 지자체명
     private List<String> extractTopRegions(List<PhotoEmbeddingRepository.SimilarPhoto> photos) {
         return photos.stream()
                 .map(PhotoEmbeddingRepository.SimilarPhoto::location)
                 .filter(Objects::nonNull)
                 .filter(s -> !s.isBlank())
-                .collect(Collectors.groupingBy(loc -> loc, Collectors.counting()))
+                .map(loc -> loc.split("\\s+")[0])
+                .collect(Collectors.groupingBy(r -> r, Collectors.counting()))
                 .entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(TOP_REGION_COUNT)
@@ -74,13 +76,12 @@ public class TasteAnalysisService {
                 .collect(Collectors.toList());
     }
 
-    // TODO: deduped_results.json의 실제 keywords 구분자 확인 후 수정
-    // 현재: 쉼표, 공백, # 복합 구분자로 파싱
+    // keywords 형식: "밀양 표충사, 재약산, 불교, 종교, 사찰" — 쉼표 구분
     private List<String> parseMoodTags(List<Photo> photos) {
         return photos.stream()
                 .map(Photo::getKeywords)
                 .filter(Objects::nonNull)
-                .flatMap(kw -> Arrays.stream(kw.split("[,#\\s]+")))
+                .flatMap(kw -> Arrays.stream(kw.split(",")))
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
                 .collect(Collectors.groupingBy(k -> k, Collectors.counting()))
@@ -90,22 +91,11 @@ public class TasteAnalysisService {
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toList());
     }
-    // ───────────────────────────────────────────────────────────────────────
 
     private String buildSummary(List<String> moodTags) {
         if (moodTags.isEmpty()) return "다양한 매력을 가진 여행 취향입니다.";
         String tags = String.join(", ", moodTags.subList(0, Math.min(3, moodTags.size())));
         return tags + " 느낌의 여행을 좋아하시는군요!";
-    }
-
-    private RecommendationResponse toResponse(Spot spot, String region) {
-        return new RecommendationResponse(
-                spot.getSpotId(),
-                spot.getName(),
-                spot.getRegionName(),
-                spot.getImageUrl(),
-                region + " 지역이 취향에 맞을 것 같아요"
-        );
     }
 
     private float[] average(List<float[]> embeddings) {

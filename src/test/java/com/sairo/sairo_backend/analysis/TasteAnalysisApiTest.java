@@ -75,7 +75,8 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
 
         mockMvc.perform(get("/recommendations").param("analysisId", analysisId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray());
+                .andExpect(jsonPath("$.moodTags").isArray())
+                .andExpect(jsonPath("$.spots").isArray());
     }
 
     @Test
