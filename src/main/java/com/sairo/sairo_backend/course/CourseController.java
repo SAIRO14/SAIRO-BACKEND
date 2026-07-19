@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import com.sairo.sairo_backend.device.DeviceRepository;
+
 import java.util.List;
 
 @Tag(name = "여행 코스", description = "1박 2일 코스 생성 및 공유 링크 발급")
@@ -18,6 +20,7 @@ public class CourseController {
 
     private final CourseService courseService;
     private final CuratedCourseService curatedCourseService;
+    private final DeviceRepository deviceRepository;
 
     @Operation(
         summary = "지역별 관광공사 큐레이션 코스 조회",
@@ -47,9 +50,13 @@ public class CourseController {
     @ResponseStatus(HttpStatus.CREATED)
     public ShareCourseResponse shareCourse(
             @Parameter(description = "POST /courses에서 받은 courseId") @PathVariable String courseId,
+            @RequestHeader(value = "X-Device-Id", required = false) String deviceId,
             @RequestBody ShareCourseRequest request
     ) {
-        return courseService.shareCourse(request);
+        if (deviceId != null && !deviceId.isBlank()) {
+            deviceRepository.upsert(deviceId);
+        }
+        return courseService.shareCourse(request, deviceId);
     }
 
     @Operation(

@@ -14,14 +14,28 @@ public class SharedCourseRepository {
 
     private final JdbcTemplate jdbcTemplate;
 
-    public String save(String courseDataJson) {
+    public String save(String courseDataJson, String deviceId) {
         String shareId = UUID.randomUUID().toString().replace("-", "").substring(0, 10);
         jdbcTemplate.update(
-                "INSERT INTO shared_courses (share_id, course_data) VALUES (?, ?::jsonb)",
-                shareId, courseDataJson
+                "INSERT INTO shared_courses (share_id, course_data, device_id) VALUES (?, ?::jsonb, ?)",
+                shareId, courseDataJson, deviceId
         );
         return shareId;
     }
+
+    public List<SavedCourseItem> findByDeviceId(String deviceId) {
+        return jdbcTemplate.query(
+                "SELECT share_id, course_data::text, created_at FROM shared_courses WHERE device_id = ? ORDER BY created_at DESC",
+                (rs, rowNum) -> new SavedCourseItem(
+                        rs.getString("share_id"),
+                        rs.getString("course_data"),
+                        rs.getTimestamp("created_at").toLocalDateTime()
+                ),
+                deviceId
+        );
+    }
+
+    public record SavedCourseItem(String shareId, String courseDataJson, java.time.LocalDateTime createdAt) {}
 
     public Optional<String> findCourseDataById(String shareId) {
         List<String> results = jdbcTemplate.query(

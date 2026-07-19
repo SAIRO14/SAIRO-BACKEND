@@ -1,5 +1,6 @@
 package com.sairo.sairo_backend.analysis;
 
+import com.sairo.sairo_backend.device.DeviceRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,14 +14,23 @@ import org.springframework.web.bind.annotation.*;
 public class TasteAnalysisController {
 
     private final TasteAnalysisService tasteAnalysisService;
+    private final DeviceRepository deviceRepository;
 
     @Operation(
         summary = "취향 분석",
-        description = "선택한 사진들의 임베딩 평균으로 취향 벡터를 생성합니다. 반환된 analysisId는 추천 조회 시 사용합니다."
+        description = "선택한 사진들의 임베딩 평균으로 취향 벡터를 생성합니다. 반환된 analysisId는 추천 조회 시 사용합니다. X-Device-Id 헤더를 포함하면 분석 이력이 저장됩니다."
     )
     @PostMapping("/taste-analysis")
-    public TasteAnalysisResponse analyze(@Valid @RequestBody TasteAnalysisRequest request) {
-        return tasteAnalysisService.analyze(request.photoIds());
+    public TasteAnalysisResponse analyze(
+            @RequestHeader(value = "X-Device-Id", required = false) String deviceId,
+            @Valid @RequestBody TasteAnalysisRequest request) {
+        TasteAnalysisResponse response = tasteAnalysisService.analyze(request.photoIds());
+        if (deviceId != null && !deviceId.isBlank()) {
+            deviceRepository.upsert(deviceId);
+            deviceRepository.saveAnalysisHistory(deviceId, response.analysisId(),
+                    String.join(",", response.moodTags()));
+        }
+        return response;
     }
 
     @Operation(

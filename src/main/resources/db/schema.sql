@@ -28,6 +28,20 @@ CREATE TABLE IF NOT EXISTS spots (
 CREATE TABLE IF NOT EXISTS shared_courses (
     share_id    TEXT PRIMARY KEY,
     course_data JSONB,
+    device_id   TEXT,
+    created_at  TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS devices (
+    device_id  TEXT PRIMARY KEY,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS analysis_history (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    device_id   TEXT NOT NULL REFERENCES devices(device_id),
+    analysis_id TEXT NOT NULL,
+    mood_tags   TEXT,
     created_at  TIMESTAMP DEFAULT NOW()
 );
 

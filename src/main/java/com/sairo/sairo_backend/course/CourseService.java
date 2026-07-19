@@ -38,7 +38,7 @@ public class CourseService {
         return new CourseResponse(UUID.randomUUID().toString(), day1, day2);
     }
 
-    public ShareCourseResponse shareCourse(ShareCourseRequest request) {
+    public ShareCourseResponse shareCourse(ShareCourseRequest request, String deviceId) {
         String courseDataJson;
         try {
             courseDataJson = objectMapper.writeValueAsString(request);
@@ -46,7 +46,7 @@ public class CourseService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "코스 데이터 직렬화 실패");
         }
 
-        String shareId = sharedCourseRepository.save(courseDataJson);
+        String shareId = sharedCourseRepository.save(courseDataJson, deviceId);
         return new ShareCourseResponse(shareId, shareBaseUrl + "/" + shareId);
     }
 
