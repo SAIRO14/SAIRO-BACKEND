@@ -10,6 +10,8 @@ public record RecommendationResponse(
             String spotId,
             String name,
             String regionName,
+            Double lat,
+            Double lng,
             String imageUrl
     ) {}
 }

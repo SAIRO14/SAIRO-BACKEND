@@ -55,7 +55,8 @@ public class TasteAnalysisService {
         List<RecommendationResponse.SpotResult> spots = topRegions.stream()
                 .flatMap(region -> spotRepository.findByRegionContaining(region, SPOTS_PER_REGION).stream()
                         .map(spot -> new RecommendationResponse.SpotResult(
-                                spot.getSpotId(), spot.getName(), spot.getRegionName(), spot.getImageUrl())))
+                                spot.getSpotId(), spot.getName(), spot.getRegionName(),
+                                spot.getLat(), spot.getLng(), spot.getImageUrl())))
                 .collect(Collectors.toList());
 
         return new RecommendationResponse(entry.moodTags(), spots);
