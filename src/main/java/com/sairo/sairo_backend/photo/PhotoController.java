@@ -14,8 +14,8 @@ public class PhotoController {
     private final PhotoRepository photoRepository;
 
     @GetMapping
-    public List<PhotoResponse> getPhotos() {
-        return photoRepository.findAll().stream()
+    public List<PhotoResponse> getPhotos(@RequestParam(defaultValue = "40") int limit) {
+        return photoRepository.findRandom(limit).stream()
                 .map(PhotoResponse::from)
                 .collect(Collectors.toList());
     }

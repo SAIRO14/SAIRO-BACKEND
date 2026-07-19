@@ -2,6 +2,7 @@ package com.sairo.sairo_backend.analysis;
 
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -9,15 +10,17 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class AnalysisStore {
 
-    private final ConcurrentHashMap<String, float[]> store = new ConcurrentHashMap<>();
+    public record AnalysisEntry(float[] embedding, List<String> moodTags) {}
 
-    public String save(float[] embedding) {
+    private final ConcurrentHashMap<String, AnalysisEntry> store = new ConcurrentHashMap<>();
+
+    public String save(float[] embedding, List<String> moodTags) {
         String id = UUID.randomUUID().toString();
-        store.put(id, embedding);
+        store.put(id, new AnalysisEntry(embedding, moodTags));
         return id;
     }
 
-    public Optional<float[]> find(String analysisId) {
+    public Optional<AnalysisEntry> find(String analysisId) {
         return Optional.ofNullable(store.get(analysisId));
     }
 }
