@@ -31,6 +31,9 @@ dependencies {
 	// HTTP 클라이언트 (TourAPI 호출용)
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
+	// Swagger UI
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 
