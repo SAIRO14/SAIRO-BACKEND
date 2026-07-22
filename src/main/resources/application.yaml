@@ -15,3 +15,11 @@ server:
 logging:
   pattern:
     level: "%5p [%X{traceId:-}]"
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
