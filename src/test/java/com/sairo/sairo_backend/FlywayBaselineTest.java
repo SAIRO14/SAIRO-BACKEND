@@ -2,6 +2,8 @@ package com.sairo.sairo_backend;
 
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.flyway.autoconfigure.FlywayProperties;
 import org.springframework.core.io.ClassPathResource;
 
 import java.nio.charset.StandardCharsets;
@@ -17,9 +19,28 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>팀원들의 로컬 DB와 운영 DB에는 V1의 테이블이 이미 있다. 이 상태에서 애플리케이션이
  * 뜰 때 Flyway가 V1을 다시 실행하지 않고 기준선만 기록해야 한다.
- * {@code baseline-on-migrate}와 {@code baseline-version} 설정이 바뀌면 이 테스트가 깨진다.
+ *
+ * <p>검증에 쓰는 설정은 테스트에 다시 적지 않고 **애플리케이션의 {@link FlywayProperties}를
+ * 그대로 읽어온다.** 설정을 테스트에 하드코딩하면 {@code application.yaml}에서
+ * {@code baseline-on-migrate}를 꺼도 테스트가 통과해 회귀를 잡지 못한다.
  */
-class FlywayBaselineTest {
+class FlywayBaselineTest extends IntegrationTestBase {
+
+    @Autowired
+    FlywayProperties flywayProperties;
+
+    /** 기존 DB 보호는 이 설정에 달려 있다. 바꾸려면 운영 DB 영향을 먼저 확인해야 한다. */
+    @Test
+    void applicationConfig_protectsExistingDatabases() {
+        assertThat(flywayProperties.isBaselineOnMigrate())
+                .as("기존 DB에서 V1이 재실행되지 않으려면 baseline-on-migrate가 켜져 있어야 한다")
+                .isTrue();
+        assertThat(flywayProperties.getBaselineVersion())
+                .as("기준선이 1이어야 V1을 이미 적용된 것으로 간주한다")
+                .isEqualTo("1");
+        assertThat(flywayProperties.getLocations())
+                .contains("classpath:db/migration");
+    }
 
     @Test
     void existingDatabase_isBaselined_withoutRerunningV1() throws Exception {
@@ -44,12 +65,12 @@ class FlywayBaselineTest {
             st.execute(v1);
         }
 
-        // 애플리케이션과 동일한 설정으로 마이그레이션한다.
+        // 애플리케이션 설정을 그대로 사용한다.
         var result = Flyway.configure()
                 .dataSource(targetUrl, user, password)
-                .locations("classpath:db/migration")
-                .baselineOnMigrate(true)
-                .baselineVersion("1")
+                .locations(flywayProperties.getLocations().toArray(new String[0]))
+                .baselineOnMigrate(flywayProperties.isBaselineOnMigrate())
+                .baselineVersion(flywayProperties.getBaselineVersion())
                 .load()
                 .migrate();
 
