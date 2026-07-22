@@ -1,7 +1,15 @@
 package com.sairo.sairo_backend.config;
 
+import com.sairo.sairo_backend.common.ErrorResponse;
+import io.swagger.v3.core.converter.AnnotatedType;
+import io.swagger.v3.core.converter.ModelConverters;
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.Schema;
+import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -38,6 +46,8 @@ public class SwaggerConfig {
             상태 코드는 잘못된 입력 400, 리소스 없음 404, 충돌 409, 서버 오류 500으로 구분한다.
             """;
 
+    private static final String ERROR_SCHEMA_REF = "#/components/schemas/ErrorResponse";
+
     @Bean
     public OpenAPI openAPI() {
         return new OpenAPI()
@@ -45,5 +55,47 @@ public class SwaggerConfig {
                         .title("SAIRO API")
                         .description(ERROR_CONTRACT_DESCRIPTION)
                         .version("v1.0"));
+    }
+
+    /**
+     * 모든 4xx·5xx 응답의 본문 스키마를 {@link ErrorResponse}로 맞춘다.
+     *
+     * <p>컨트롤러마다 {@code content = @Content(schema = ...)}를 반복해 적으면
+     * 하나만 빠뜨려도 그 엔드포인트의 명세가 틀어진다. 실제로 이 설정을 넣기 전에는
+     * 오류 응답 7개가 모두 성공 DTO 스키마로 생성되고 있었다.
+     *
+     * <p>여기서 일괄 처리하면 앞으로 추가되는 엔드포인트도 자동으로 적용된다.
+     * 개별 컨트롤러는 상태 코드와 {@code ErrorCode} 이름만 설명에 적으면 된다.
+     */
+    @Bean
+    public OpenApiCustomizer errorResponseSchemaCustomizer() {
+        return openApi -> {
+            registerErrorSchema(openApi);
+
+            Content errorContent = new Content().addMediaType(
+                    org.springframework.http.MediaType.APPLICATION_JSON_VALUE,
+                    new MediaType().schema(new Schema<>().$ref(ERROR_SCHEMA_REF)));
+
+            if (openApi.getPaths() == null) return;
+
+            openApi.getPaths().values().forEach(pathItem ->
+                    pathItem.readOperations().forEach(operation -> {
+                        if (operation.getResponses() == null) return;
+                        operation.getResponses().forEach((statusCode, response) -> {
+                            if (statusCode.startsWith("4") || statusCode.startsWith("5")) {
+                                response.setContent(errorContent);
+                            }
+                        });
+                    }));
+        };
+    }
+
+    private void registerErrorSchema(OpenAPI openApi) {
+        if (openApi.getComponents() == null) {
+            openApi.setComponents(new Components());
+        }
+        ModelConverters.getInstance()
+                .readAll(new AnnotatedType(ErrorResponse.class))
+                .forEach(openApi.getComponents()::addSchemas);
     }
 }
