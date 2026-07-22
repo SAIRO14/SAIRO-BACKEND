@@ -5,6 +5,11 @@
 규약을 여기 옮겨 적지 않는다. 두 문서가 어긋나면 AGENTS.md가 우선한다.
 규약이 바뀌면 AGENTS.md만 고친다.
 
+요구사항·데이터 모델·결정 기록은 [docs/](./docs/)에 있다. 문서 지도는 [docs/README.md](./docs/README.md)다.
+
+**작업을 시작하기 전에 [docs/open-questions.md](./docs/open-questions.md)를 확인한다.**
+아직 정해지지 않은 항목이 여럿이고 일부는 다른 작업을 막고 있다. 걸리면 추측하지 말고 사용자에게 묻는다.
+
 ## 자주 쓰는 명령
 
 ```bash

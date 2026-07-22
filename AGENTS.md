@@ -233,10 +233,48 @@ Testcontainers는 빈 컨테이너를 띄우고 Flyway가 스키마를 만든다
 
 ---
 
-## 11. 작업할 때 확인할 것
+## 11. 문서와 작업 흐름
 
-- 요구사항 정본은 `docs/final-requirements.md`다. 충돌하면 이 문서가 우선한다.
-  (현재 `docs/`는 저장소에 커밋되지 않은 상태다.)
-- 미결정 항목(TBD)이 걸린 작업은 **추측해서 구현하지 말고 먼저 확인한다.**
-  익명 사용자 ID 전달 방식, 공유 링크 만료, 분석 ID TTL 등이 아직 열려 있다.
-- 요구사항과 현재 구현의 차이는 `docs/final-requirements.md` §11에 정리돼 있다.
+이 문서는 **코드를 어떻게 쓰는가**를 다룬다.
+**무엇을 왜 만드는가**는 [docs/](./docs/)에 있다. 문서 지도는 [docs/README.md](./docs/README.md)다.
+
+| 필요한 것 | 문서 |
+|---|---|
+| 이 API가 보장해야 하는 동작 | [docs/requirements.md](./docs/requirements.md) |
+| 오류 코드, 멱등성, 소유권, 페이지네이션 | [docs/api-contract.md](./docs/api-contract.md) |
+| 엔드포인트별 요청·응답 | Swagger `/swagger-ui.html` |
+| 테이블·컬럼의 의미 | [docs/data-model.md](./docs/data-model.md) |
+| 추천 계산 방식과 한계 | [docs/recommendation.md](./docs/recommendation.md) |
+| 용어와 코드 이름 매핑 | [docs/glossary.md](./docs/glossary.md) |
+| 이 구조가 왜 이런지 | [docs/decisions/](./docs/decisions/) |
+| 아직 안 정해진 것 | [docs/open-questions.md](./docs/open-questions.md) |
+
+### 작업을 시작하기 전에
+
+**[open-questions.md](./docs/open-questions.md)를 먼저 확인한다.**
+걸리는 항목이 있으면 **추측해서 구현하지 말고 사용자에게 확인한다.**
+익명 사용자 ID 전달 방식, 코스 영속화 여부, 분석 ID TTL 등이 아직 열려 있고
+일부는 다른 작업을 막고 있다.
+
+### 작업하면서
+
+- 새 개념에 이름을 붙이기 전에 [glossary.md](./docs/glossary.md)를 본다.
+  이미 있는 개념이면 그 이름을 쓴다.
+- 전역 규칙이 필요하면 [api-contract.md](./docs/api-contract.md)를 본다.
+  거기 없는 새 규칙을 만들었다면 문서에 추가한다.
+
+### 작업을 마치고
+
+문서를 고쳐야 하는 경우는 다음과 같다.
+
+| 한 일 | 고칠 문서 |
+|---|---|
+| 미결 항목을 확정했다 | open-questions.md에서 지우고 해당 문서로 옮긴다 |
+| 되돌리기 어려운 선택을 했다 | [decisions/](./docs/decisions/)에 ADR을 추가한다 |
+| 스키마를 바꿨다 | data-model.md |
+| 추천·코스 계산을 바꿨다 | recommendation.md |
+| 전역 API 규칙을 추가했다 | api-contract.md |
+| 새 개념에 이름을 붙였다 | glossary.md |
+| 요구사항 대비 격차를 해소했다 | requirements.md §6 표에서 지운다 |
+
+**엔드포인트별 스펙은 문서에 적지 않는다.** 컨트롤러 어노테이션으로 남긴다.

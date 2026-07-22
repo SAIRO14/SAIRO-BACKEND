@@ -9,9 +9,12 @@
 
 | 문서 | 내용 |
 |---|---|
-| [AGENTS.md](./AGENTS.md) | **코딩 규약 정본** — 패키지 구조, 계층 규칙, 오류 계약, 테스트 |
+| [docs/](./docs/) | **무엇을 왜 만드는가** — 요구사항, API 계약, 데이터 모델, 결정 기록, 미결 항목 |
+| [AGENTS.md](./AGENTS.md) | **코드를 어떻게 쓰는가** — 패키지 구조, 계층 규칙, 오류 처리, 테스트 |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | 브랜치 전략, 커밋 규칙, PR 흐름 |
 | [CLAUDE.md](./CLAUDE.md) | AI 에이전트용 진입점 (AGENTS.md를 참조한다) |
+
+처음이라면 [docs/README.md](./docs/README.md)에서 시작하면 된다. 어떤 질문에 어떤 문서를 볼지 정리돼 있다.
 
 ## 기술 스택
 
