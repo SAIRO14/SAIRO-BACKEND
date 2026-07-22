@@ -22,6 +22,13 @@ public enum ErrorCode {
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 리소스를 찾을 수 없습니다.", false),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "요청을 완료하지 못했어요.", true),
 
+    // ─── 프로토콜 수준 오류 ──────────────────────────────────────────────────
+    // 표준 HTTP 의미를 유지한다. 400으로 뭉뚱그리면 프록시와 클라이언트가 원인을 구분할 수 없다.
+    ENDPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 경로입니다.", false),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "허용되지 않은 요청 방식입니다.", false),
+    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 Content-Type입니다.", false),
+    NOT_ACCEPTABLE(HttpStatus.NOT_ACCEPTABLE, "지원하지 않는 응답 형식 요청입니다.", false),
+
     // ─── 디바이스 식별 ───────────────────────────────────────────────────────
     DEVICE_ID_REQUIRED(HttpStatus.BAD_REQUEST, "디바이스 식별자가 필요합니다.", false),
     DEVICE_ID_INVALID(HttpStatus.BAD_REQUEST, "디바이스 식별자 형식이 올바르지 않습니다.", false),

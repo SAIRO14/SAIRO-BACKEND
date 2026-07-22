@@ -4,6 +4,7 @@ import com.sairo.sairo_backend.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -56,16 +57,66 @@ class ErrorContractTest extends IntegrationTestBase {
     // 오류 본문의 traceId와 응답 헤더의 추적 ID는 같은 값이어야 로그 추적이 성립한다.
     @Test
     void errorBodyTraceId_matchesResponseHeader() throws Exception {
-        var result = mockMvc.perform(get("/places/no-such-spot"))
+        var response = mockMvc.perform(get("/places/no-such-spot"))
                 .andExpect(status().isNotFound())
-                .andReturn();
+                .andReturn().getResponse();
 
-        String headerTraceId = result.getResponse().getHeader("X-Trace-Id");
-        mockMvc.perform(get("/places/no-such-spot"))
-                .andExpect(jsonPath("$.traceId").isString());
+        String headerTraceId = response.getHeader("X-Trace-Id");
+        assertThat(headerTraceId).isNotBlank();
+        assertThat(response.getContentAsString()).contains("\"traceId\":\"" + headerTraceId + "\"");
+    }
 
-        org.assertj.core.api.Assertions.assertThat(headerTraceId).isNotBlank();
-        org.assertj.core.api.Assertions.assertThat(result.getResponse().getContentAsString())
-                .contains(headerTraceId);
+    // ─── 프로토콜 수준 오류 ──────────────────────────────────────────────────
+    // 아래는 Spring이 기본 처리하던 4xx다. 포괄 Exception 핸들러가 이를 가로채
+    // 전부 500으로 만든 회귀가 있었으므로 상태 코드를 고정한다.
+
+    @Test
+    void malformedJson_returns400() throws Exception {
+        mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"photoIds\": ["))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.retryable").value(false));
+    }
+
+    @Test
+    void unsupportedContentType_returns415() throws Exception {
+        mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("hello"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"));
+    }
+
+    @Test
+    void unsupportedMethod_returns405WithAllowHeader() throws Exception {
+        mockMvc.perform(post("/photos"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().exists("Allow"))
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
+    }
+
+    @Test
+    void unknownPath_returns404() throws Exception {
+        mockMvc.perform(get("/no-such-endpoint"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ENDPOINT_NOT_FOUND"));
+    }
+
+    // 검증 없이 두면 음수가 DB까지 내려가 500이 된다.
+    @Test
+    void negativeLimit_returns400() throws Exception {
+        mockMvc.perform(get("/photos").param("limit", "-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.retryable").value(false));
+    }
+
+    @Test
+    void excessiveLimit_returns400() throws Exception {
+        mockMvc.perform(get("/photos").param("limit", "10000"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 }
