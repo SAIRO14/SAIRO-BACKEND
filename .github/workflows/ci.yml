@@ -21,7 +21,17 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Run tests
-        run: ./gradlew test
+      # build는 컴파일과 테스트를 함께 수행한다. 테스트만 돌리면 컴파일 경고나
+      # 패키징 단계의 실패를 PR 시점에 잡지 못한다.
+      - name: Build and test
+        run: ./gradlew build
         env:
           TOUR_API_SERVICE_KEY: ${{ secrets.TOUR_API_SERVICE_KEY }}
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test
+          retention-days: 7
