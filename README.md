@@ -86,15 +86,5 @@ Testcontainers가 pgvector 컨테이너를 띄우므로 **Docker가 실행 중�
 
 ## 오류 응답
 
-모든 API는 오류를 아래 한 가지 형태로 반환한다. 자세한 규칙은 [AGENTS.md](./AGENTS.md) 5절에 있다.
-
-```json
-{
-  "code": "ANALYSIS_NOT_FOUND",
-  "message": "분석 결과를 찾을 수 없습니다.",
-  "retryable": false,
-  "traceId": "3f8c1a20b4d1"
-}
-```
-
-`traceId`는 응답 헤더 `X-Trace-Id`와 같은 값이며 서버 로그와 대조할 수 있다.
+모든 API가 `{code, message, retryable, traceId}` 한 가지 형태로 오류를 반환한다.
+형식과 코드 목록은 [docs/api-contract.md](./docs/api-contract.md)에 있다.

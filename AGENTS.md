@@ -106,31 +106,11 @@ com.sairo.sairo_backend
 
 ## 5. 오류 처리
 
-### 계약
+오류 응답의 **형태와 상태 코드 규칙**은 [docs/api-contract.md](./docs/api-contract.md)에 있다.
+여기서는 코드에서 그것을 어떻게 만들어내는지만 다룬다.
 
-모든 오류 응답은 아래 한 가지 형태다. `common/ErrorResponse`
-
-```json
-{
-  "code": "ANALYSIS_NOT_FOUND",
-  "message": "분석 결과를 찾을 수 없습니다.",
-  "retryable": false,
-  "traceId": "3f8c1a20b4d1"
-}
-```
-
-- `code` — 클라이언트 분기 기준. `common/ErrorCode` enum 이름과 1:1이다.
-- `retryable` — **같은 요청을 그대로 재시도해서 성공할 가능성이 있는가.** 입력 오류와 리소스 부재는 false다.
-- `traceId` — 응답 헤더 `X-Trace-Id`와 같은 값이며 서버 로그와 대조할 수 있다.
-
-### 상태 코드
-
-| 상황 | 코드 |
-|---|---|
-| 잘못된 입력 | 400 |
-| 리소스 없음 / 만료 | 404 |
-| 충돌 (중복 저장 등) | 409 |
-| 서버 오류 | 500 |
+관련 클래스는 모두 `common` 패키지에 있다.
+`ErrorCode` `BusinessException` `ErrorResponse` `TraceIdFilter` `GlobalExceptionHandler`
 
 ### 던지는 방법
 
@@ -190,6 +170,9 @@ throw new BusinessException(ErrorCode.INVALID_PHOTO_SELECTION, "유효한 사진
 
 스키마는 **Flyway**로 관리한다. 정본은 `src/main/resources/db/migration/` 아래 마이그레이션 파일이다.
 
+각 테이블과 컬럼의 의미는 [docs/data-model.md](./docs/data-model.md)에 있다.
+이 절은 스키마를 바꾸는 방법만 다룬다.
+
 ### 규칙
 
 - 파일 이름은 `V<번호>__<설명>.sql` 형식이다. 예: `V2__add_saved_trips.sql`
@@ -224,12 +207,9 @@ Testcontainers는 빈 컨테이너를 띄우고 Flyway가 스키마를 만든다
 
 ## 10. Git
 
-`CONTRIBUTING.md`가 정본이다. 요약하면 다음과 같다.
+브랜치·커밋·PR 규칙은 [CONTRIBUTING.md](./CONTRIBUTING.md)를 따른다.
 
-- 브랜치: `feat/이슈번호-기능명`, `fix/이슈번호-버그명`, `chore/작업명`
-- 커밋: `타입: 내용 (#이슈번호)` — 타입은 `feat` `fix` `chore` `refactor` `test`
-- `main`에 직접 푸시하지 않는다. PR로 올리고 squash merge 한다.
-- 커밋과 푸시는 사람이 지시했을 때만 한다.
+여기에만 있는 규칙이 하나 있다. **커밋과 푸시는 사람이 지시했을 때만 한다.**
 
 ---
 
