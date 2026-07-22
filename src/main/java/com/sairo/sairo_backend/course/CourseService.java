@@ -1,12 +1,12 @@
 package com.sairo.sairo_backend.course;
 
+import com.sairo.sairo_backend.common.BusinessException;
+import com.sairo.sairo_backend.common.ErrorCode;
 import com.sairo.sairo_backend.spot.Spot;
 import com.sairo.sairo_backend.spot.SpotRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.*;
@@ -26,7 +26,7 @@ public class CourseService {
     public CourseResponse buildCourse(CourseRequest request) {
         List<Spot> spots = spotRepository.findAllById(request.spotIds());
         if (spots.size() < 2) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "유효한 장소가 2개 이상 필요합니다.");
+            throw new BusinessException(ErrorCode.INSUFFICIENT_SPOTS, "유효한 장소가 2개 이상 필요합니다.");
         }
 
         List<Spot> sorted = sortByNearestNeighbor(spots);
@@ -43,7 +43,7 @@ public class CourseService {
         try {
             courseDataJson = objectMapper.writeValueAsString(request);
         } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "코스 데이터 직렬화 실패");
+            throw new BusinessException(ErrorCode.SHARE_CREATION_FAILED, "코스 데이터 직렬화 실패", e);
         }
 
         String shareId = sharedCourseRepository.save(courseDataJson);
@@ -52,13 +52,13 @@ public class CourseService {
 
     public SharedCourseViewResponse getSharedCourse(String shareId) {
         String json = sharedCourseRepository.findCourseDataById(shareId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "공유 코스를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.SHARED_COURSE_NOT_FOUND));
 
         try {
             ShareCourseRequest data = objectMapper.readValue(json, ShareCourseRequest.class);
             return new SharedCourseViewResponse(shareId, data.day1(), data.day2());
         } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "코스 데이터 역직렬화 실패");
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "코스 데이터 역직렬화 실패", e);
         }
     }
 

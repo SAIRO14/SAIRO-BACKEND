@@ -10,3 +10,8 @@ spring:
 
 server:
   port: 8080
+
+# 오류 응답의 traceId와 서버 로그를 이어 붙이기 위한 패턴 (TraceIdFilter가 MDC에 넣는다)
+logging:
+  pattern:
+    level: "%5p [%X{traceId:-}]"
