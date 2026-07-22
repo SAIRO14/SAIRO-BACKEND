@@ -38,15 +38,17 @@ public class CourseService {
         return new CourseResponse(UUID.randomUUID().toString(), day1, day2);
     }
 
+    // 직렬화와 저장 모두 공유 생성 실패다. 저장을 try 밖에 두면 DB 장애가
+    // INTERNAL_ERROR로 나가 Swagger에 문서화한 SHARE_CREATION_FAILED와 어긋난다.
     public ShareCourseResponse shareCourse(ShareCourseRequest request) {
-        String courseDataJson;
+        String shareId;
         try {
-            courseDataJson = objectMapper.writeValueAsString(request);
+            String courseDataJson = objectMapper.writeValueAsString(request);
+            shareId = sharedCourseRepository.save(courseDataJson);
         } catch (Exception e) {
-            throw new BusinessException(ErrorCode.SHARE_CREATION_FAILED, "코스 데이터 직렬화 실패", e);
+            throw new BusinessException(ErrorCode.SHARE_CREATION_FAILED, "공유 코스 저장 실패", e);
         }
 
-        String shareId = sharedCourseRepository.save(courseDataJson);
         return new ShareCourseResponse(shareId, shareBaseUrl + "/" + shareId);
     }
 

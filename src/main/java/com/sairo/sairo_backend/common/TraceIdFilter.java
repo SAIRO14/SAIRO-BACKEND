@@ -27,7 +27,8 @@ public class TraceIdFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
-        String traceId = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        // 잘라 쓰지 않는다. 장기 로그에서 유일한 추적 키이므로 충돌 여지를 남기지 않는다.
+        String traceId = UUID.randomUUID().toString().replace("-", "");
         MDC.put(TRACE_ID, traceId);
         response.setHeader(HEADER, traceId);
         try {
