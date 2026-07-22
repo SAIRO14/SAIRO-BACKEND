@@ -40,8 +40,9 @@ public class CourseController {
             description = """
                     공유 시점의 코스를 읽기 전용 스냅샷으로 저장하고 공유 링크를 반환한다.
 
-                    현재 경로의 `courseId`는 사용되지 않고 요청 본문이 그대로 저장된다.
-                    서버가 생성한 코스와 연결하도록 바꿔야 한다. (요구사항 §11 P0)
+                    **알려진 문제**: 현재 경로의 `courseId`는 사용되지 않고 요청 본문이 그대로 저장된다.
+                    지역 정보도 저장되지 않는다. 서버가 생성한 코스와 연결하도록 바꿔야 한다.
+                    (docs/open-questions.md Q-03)
                     """
     )
     @ApiResponses({

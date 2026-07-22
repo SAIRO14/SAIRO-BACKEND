@@ -18,14 +18,21 @@
 
 ## 2. 상태 코드
 
-| 상황 | 코드 |
-|---|---|
-| 성공 | 200 |
-| 생성됨 | 201 |
-| 잘못된 입력 | 400 |
-| 리소스 없음 또는 만료 | 404 |
-| 충돌 (중복 저장 등) | 409 |
-| 서버 오류 | 500 |
+| 상황 | 코드 | 오류 코드 |
+|---|---|---|
+| 성공 | 200 | - |
+| 생성됨 | 201 | - |
+| 잘못된 입력 | 400 | `INVALID_REQUEST` 등 |
+| 리소스 없음 또는 만료 | 404 | 도메인별 `*_NOT_FOUND` |
+| 존재하지 않는 경로 | 404 | `ENDPOINT_NOT_FOUND` |
+| 허용되지 않은 메서드 | 405 | `METHOD_NOT_ALLOWED` |
+| 지원하지 않는 Content-Type | 415 | `UNSUPPORTED_MEDIA_TYPE` |
+| 충돌 (중복 저장 등) | 409 | `SAVED_TRIP_CONFLICT` 등 |
+| 서버 오류 | 500 | `INTERNAL_ERROR` 등 |
+
+**프로토콜 수준 오류는 표준 HTTP 의미를 유지한다.** 405와 415를 400으로 뭉뚱그리지 않는다.
+중간 프록시와 클라이언트가 원인을 구분할 수 없게 되기 때문이다.
+405 응답에는 `Allow` 헤더를 함께 보낸다.
 
 **리소스가 없는 것과 입력이 잘못된 것을 구분한다.** 형식이 맞는 ID인데 대상이 없으면 404이고,
 형식 자체가 틀렸으면 400이다.
@@ -64,6 +71,7 @@ Swagger의 각 엔드포인트에도 발생 가능한 코드가 적혀 있다.
 | 영역 | 코드 |
 |---|---|
 | 공통 | `INVALID_REQUEST` `RESOURCE_NOT_FOUND` `INTERNAL_ERROR` |
+| 프로토콜 | `ENDPOINT_NOT_FOUND` `METHOD_NOT_ALLOWED` `UNSUPPORTED_MEDIA_TYPE` `NOT_ACCEPTABLE` |
 | 디바이스 식별 | `DEVICE_ID_REQUIRED` `DEVICE_ID_INVALID` |
 | 사진 풀 | `PHOTO_POOL_UNAVAILABLE` |
 | 취향 분석 | `INVALID_PHOTO_SELECTION` `ANALYSIS_FAILED` `ANALYSIS_NOT_FOUND` |

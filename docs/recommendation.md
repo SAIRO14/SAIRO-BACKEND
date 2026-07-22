@@ -5,12 +5,15 @@
 **현재 구현은 MVP 휴리스틱이다.** 정교한 랭킹이나 품질 평가는 없다.
 이 문서는 지금 무엇을 하고 있고 그 한계가 무엇인지 남겨, 나중에 바꿀 때 근거가 되도록 한다.
 
+**여기 적힌 것은 현재 동작이다.** 요구사항과 다른 부분은 그 자리에 함께 표시한다.
+요구사항 기준은 [requirements.md](./requirements.md)를 본다.
+
 관련 코드: `analysis/TasteAnalysisService`, `course/CourseService`, `photo/PhotoEmbeddingRepository`
 
 ## 전체 흐름
 
 ```text
-선택 사진 5~10장
+선택 사진 (현재 구현 1~20장, 요구사항 5~10장)
   └─ 임베딩 조회 → 산술 평균 → 대표 임베딩
   └─ 키워드 빈도 → 분위기 태그
        ↓ analysisId로 임시 저장

@@ -92,7 +92,7 @@ com.sairo.sairo_backend
 | Spring Data JPA | 엔티티 단순 CRUD | `spot/SpotRepository`, `photo/PhotoRepository` |
 | `JdbcTemplate` | 벡터 검색, JSONB, 커서 페이지 등 JPA로 어색한 쿼리 | `photo/PhotoEmbeddingRepository`, `course/SharedCourseRepository` |
 
-`ddl-auto: validate`이므로 **엔티티와 `db/schema.sql`이 어긋나면 애플리케이션이 뜨지 않는다.** 엔티티를 바꾸면 스키마도 함께 바꾼다.
+`ddl-auto: validate`이므로 **엔티티와 마이그레이션이 어긋나면 애플리케이션이 뜨지 않는다.** 엔티티를 바꾸면 마이그레이션도 함께 추가한다. (§8)
 
 ### DTO
 
@@ -157,7 +157,7 @@ throw new BusinessException(ErrorCode.INVALID_PHOTO_SELECTION, "유효한 사진
 
 ## 7. 테스트
 
-- 통합 테스트는 `IntegrationTestBase`를 상속한다. Testcontainers가 pgvector 컨테이너를 띄우고 `db/schema.sql`을 적용한다.
+- 통합 테스트는 `IntegrationTestBase`를 상속한다. Testcontainers가 빈 pgvector 컨테이너를 띄우고 Flyway가 스키마를 만든다. (§8)
 - 컨테이너는 `PostgresTestContainer`에서 JVM당 하나만 뜬다. 테스트 클래스마다 새로 만들지 않는다.
 - `MockMvc`는 `IntegrationTestBase`가 필터까지 등록해 만든다. 직접 `webAppContextSetup`을 호출하지 않는다.
 - 테스트 이름은 `대상_조건_결과` 형식이다. 예: `recommendations_withInvalidAnalysisId_returns404`
