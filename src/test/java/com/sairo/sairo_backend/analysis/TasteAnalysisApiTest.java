@@ -79,10 +79,13 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.spots").isArray());
     }
 
+    // 없거나 만료된 analysisId는 리소스 부재이므로 404다. (docs/api-contract.md 상태 코드)
     @Test
-    void recommendations_withInvalidAnalysisId_returns400() throws Exception {
+    void recommendations_withInvalidAnalysisId_returns404() throws Exception {
         mockMvc.perform(get("/recommendations").param("analysisId", "invalid-id"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ANALYSIS_NOT_FOUND"))
+                .andExpect(jsonPath("$.retryable").value(false));
     }
 
     private void insertPhoto(String id, String title, String imageUrl, String location, String keywords) {

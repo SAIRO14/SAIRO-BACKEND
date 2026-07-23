@@ -28,8 +28,17 @@ dependencies {
 	// PostgreSQL
 	runtimeOnly 'org.postgresql:postgresql'
 
+	// DB 마이그레이션
+	// Spring Boot 4는 Flyway 자동 설정을 spring-boot-autoconfigure에서 분리했다.
+	// flyway-core만 넣으면 마이그레이션이 조용히 실행되지 않으므로 반드시 스타터를 쓴다.
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+
 	// HTTP 클라이언트 (TourAPI 호출용)
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+	// Swagger UI
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
 
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'

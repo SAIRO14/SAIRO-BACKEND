@@ -1,3 +1,7 @@
+-- 기존 db/schema.sql을 Flyway 기준선으로 옮긴 것이다.
+-- 이미 이 테이블들을 가진 DB는 baseline-on-migrate 설정으로 이 스크립트를 건너뛴다.
+-- 적용된 마이그레이션은 절대 수정하지 않는다. 변경은 항상 새 V 파일로 추가한다.
+
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS photos (

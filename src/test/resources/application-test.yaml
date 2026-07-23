@@ -1,7 +1,9 @@
 spring:
   jpa:
     hibernate:
-      ddl-auto: none
+      # 운영과 동일하게 validate를 쓴다. none으로 두면 엔티티와 마이그레이션이
+      # 어긋나도 CI가 통과하고, 실제 기동 시점에야 드러난다.
+      ddl-auto: validate
 
 tour-api:
   base-url: https://apis.data.go.kr/B551011/KorService2

@@ -1,5 +1,6 @@
 package com.sairo.sairo_backend;
 
+import com.sairo.sairo_backend.common.TraceIdFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,10 +26,16 @@ public abstract class IntegrationTestBase {
     @Autowired
     WebApplicationContext wac;
 
+    @Autowired
+    TraceIdFilter traceIdFilter;
+
     protected MockMvc mockMvc;
 
+    // 필터를 함께 등록해야 traceId 발급과 X-Trace-Id 헤더가 실제 요청과 같게 동작한다.
     @BeforeEach
     void setUpMockMvc() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
+        mockMvc = MockMvcBuilders.webAppContextSetup(wac)
+                .addFilters(traceIdFilter)
+                .build();
     }
 }
