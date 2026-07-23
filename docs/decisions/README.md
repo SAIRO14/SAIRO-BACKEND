@@ -14,6 +14,11 @@
 | [0002](./0002-openapi-as-api-spec-source.md) | OpenAPI를 API 명세 정본으로 | 수용됨 | 2026-07-23 |
 | [0003](./0003-flyway-for-schema-migration.md) | Flyway로 스키마 관리 | 수용됨 | 2026-07-23 |
 | [0004](./0004-agents-md-as-convention-source.md) | AGENTS.md를 코딩 규약 정본으로 | 수용됨 | 2026-07-23 |
+| [0005](./0005-clip-model-selection.md) | CLIP ViT-B/32 임베딩 모델 선택 | 수용됨 | 2026-07-25 |
+| [0006](./0006-pgvector-vector-search.md) | pgvector 벡터 유사도 검색 | 수용됨 | 2026-07-25 |
+| [0007](./0007-anonymous-device-id.md) | 익명 기기 ID (X-Device-Id) 인증 방식 | 수용됨 | 2026-07-25 |
+| [0008](./0008-greedy-nearest-neighbor-course-sort.md) | Greedy Nearest-Neighbor 코스 정렬 | 수용됨 | 2026-07-25 |
+| [0009](./0009-tourapi-curated-course-source.md) | 한국관광공사 TourAPI contentTypeId=25 데이터 소스 | 수용됨 | 2026-07-25 |
 
 ## 언제 ADR을 쓰나
 
