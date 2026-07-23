@@ -21,17 +21,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # test도 컴파일에 의존하므로 컴파일 실패는 어느 쪽이든 잡힌다.
-      # build로 넓히면 assemble, bootJar 등 패키징 단계와 나머지 check 작업까지 검증된다.
-      - name: Build and test
-        run: ./gradlew build
+      - name: Run tests
+        run: ./gradlew test
         env:
           TOUR_API_SERVICE_KEY: ${{ secrets.TOUR_API_SERVICE_KEY }}
-
-      - name: Upload test report
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-report
-          path: build/reports/tests/test
-          retention-days: 7

@@ -1,11 +1,11 @@
 package com.sairo.sairo_backend.place;
 
-import com.sairo.sairo_backend.common.BusinessException;
-import com.sairo.sairo_backend.common.ErrorCode;
 import com.sairo.sairo_backend.spot.Spot;
 import com.sairo.sairo_backend.spot.SpotRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
@@ -16,7 +16,7 @@ public class PlaceService {
 
     public PlaceDetailResponse getPlace(String spotId) {
         Spot spot = spotRepository.findById(spotId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.PLACE_NOT_FOUND));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "장소를 찾을 수 없습니다."));
 
         if (hasCompleteInfo(spot)) {
             return PlaceDetailResponse.from(spot, false);

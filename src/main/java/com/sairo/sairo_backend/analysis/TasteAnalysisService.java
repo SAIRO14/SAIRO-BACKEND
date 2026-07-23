@@ -1,14 +1,14 @@
 package com.sairo.sairo_backend.analysis;
 
-import com.sairo.sairo_backend.common.BusinessException;
-import com.sairo.sairo_backend.common.ErrorCode;
 import com.sairo.sairo_backend.photo.Photo;
 import com.sairo.sairo_backend.photo.PhotoEmbeddingRepository;
 import com.sairo.sairo_backend.photo.PhotoRepository;
 import com.sairo.sairo_backend.spot.Spot;
 import com.sairo.sairo_backend.spot.SpotRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -29,7 +29,7 @@ public class TasteAnalysisService {
     public TasteAnalysisResponse analyze(List<String> photoIds) {
         Map<String, float[]> embeddings = embeddingRepository.findEmbeddingsByIds(photoIds);
         if (embeddings.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_PHOTO_SELECTION, "유효한 사진 ID가 없습니다.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "유효한 photo_id가 없습니다.");
         }
 
         float[] avgEmbedding = average(new ArrayList<>(embeddings.values()));
@@ -45,7 +45,7 @@ public class TasteAnalysisService {
 
     public RecommendationResponse recommend(String analysisId) {
         AnalysisStore.AnalysisEntry entry = analysisStore.find(analysisId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ANALYSIS_NOT_FOUND));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "유효하지 않은 analysis_id입니다."));
 
         List<PhotoEmbeddingRepository.SimilarPhoto> similarPhotos =
                 embeddingRepository.findSimilarPhotos(entry.embedding(), SIMILAR_PHOTO_LIMIT);
