@@ -65,21 +65,32 @@ public class CourseService {
     }
 
     // ─── 좌표 기반 Greedy Nearest-Neighbor 정렬 ──────────────────────────────
-    // 좌표 없는 spot은 후순위 처리 (null 좌표 → 뒤로 배치)
+    //
+    // 같은 요청에는 항상 같은 코스가 나와야 한다. spotRepository.findAllById()는
+    // 반환 순서를 보장하지 않으므로, 목록 순서에 의존하는 지점을 모두 없앤다.
+    //   - 시작점: 가장 북쪽 장소 (동일 위도면 spotId가 작은 쪽)
+    //   - 다음 장소: 최단 거리 (거리가 같으면 spotId가 작은 쪽)
+    //   - 좌표 없는 장소: spotId 순으로 뒤에 배치
     private List<Spot> sortByNearestNeighbor(List<Spot> spots) {
         List<Spot> withCoords = spots.stream()
                 .filter(s -> s.getLat() != null && s.getLng() != null)
                 .collect(Collectors.toCollection(ArrayList::new));
         List<Spot> noCoords = spots.stream()
                 .filter(s -> s.getLat() == null || s.getLng() == null)
+                .sorted(Comparator.comparing(Spot::getSpotId))
                 .collect(Collectors.toList());
 
-        if (withCoords.isEmpty()) return spots;
+        if (withCoords.isEmpty()) {
+            return noCoords.isEmpty() ? spots : noCoords;
+        }
 
         List<Spot> sorted = new ArrayList<>();
         Set<String> visited = new HashSet<>();
 
-        Spot current = withCoords.get(0);
+        Spot current = withCoords.stream()
+                .min(Comparator.comparingDouble(Spot::getLat).reversed()
+                        .thenComparing(Spot::getSpotId))
+                .orElseThrow();
         sorted.add(current);
         visited.add(current.getSpotId());
 
@@ -87,7 +98,8 @@ public class CourseService {
             Spot finalCurrent = current;
             Spot next = withCoords.stream()
                     .filter(s -> !visited.contains(s.getSpotId()))
-                    .min(Comparator.comparingDouble(s -> euclidean(finalCurrent, s)))
+                    .min(Comparator.comparingDouble((Spot s) -> euclidean(finalCurrent, s))
+                            .thenComparing(Spot::getSpotId))
                     .orElseThrow();
             sorted.add(next);
             visited.add(next.getSpotId());

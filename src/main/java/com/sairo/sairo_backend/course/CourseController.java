@@ -54,7 +54,7 @@ public class CourseController {
     public ShareCourseResponse shareCourse(
             @Parameter(description = "공유할 코스 ID", required = true)
             @PathVariable String courseId,
-            @RequestBody ShareCourseRequest request
+            @Valid @RequestBody ShareCourseRequest request
     ) {
         return courseService.shareCourse(request);
     }
