@@ -18,6 +18,7 @@
 | 아직 안 정해진 건 무엇인가 | [open-questions.md](./open-questions.md) |
 | 코딩 규약, 패키지 구조, 테스트 | [../AGENTS.md](../AGENTS.md) |
 | 브랜치·커밋·PR 규칙 | [../CONTRIBUTING.md](../CONTRIBUTING.md) |
+| PR 리뷰어 체크리스트 | [../REVIEW.md](../REVIEW.md) |
 | 로컬 실행 방법 | [../README.md](../README.md) |
 
 ## 문서의 원칙
