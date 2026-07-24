@@ -7,6 +7,7 @@
 
 | 질문 | 문서 |
 |---|---|
+| 이 제품을 왜 만들고 누구를 위한 것인가 | [PRD.md](./PRD.md) |
 | 이 API는 무엇을 보장해야 하나 | [requirements.md](./requirements.md) |
 | 오류 코드, 멱등성, 페이지네이션 규칙은 | [api-contract.md](./api-contract.md) |
 | 엔드포인트별 요청·응답 형태는 | **Swagger UI** — 서버 실행 후 `/swagger-ui.html` |
