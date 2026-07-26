@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MvcResult;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,12 +19,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class CourseApiTest extends IntegrationTestBase {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     @Autowired
     JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void setUp() {
-        // shared_courses가 courses를 참조하므로 순서를 지킨다.
+        // FK가 ON DELETE SET NULL이라 순서에 제약은 없다. 읽는 순서대로 지운다.
         jdbcTemplate.update("DELETE FROM shared_courses");
         jdbcTemplate.update("DELETE FROM courses");
         jdbcTemplate.update("DELETE FROM spots");
@@ -207,9 +210,12 @@ class CourseApiTest extends IntegrationTestBase {
      *
      * <p>장소 조회가 {@code ILIKE '%지역%'}이므로 "제주"로 조회된 "제주도" 장소가
      * 검증에서 막히면 추천에서 코스 생성으로 이어지는 흐름이 끊긴다.
+     *
+     * <p>스냅샷에 저장되는 값은 요청한 "제주"가 아니라 장소에서 유도한 "제주도"다.
+     * 요청 값을 그대로 믿으면 "주" 같은 값이 그대로 저장된다.
      */
     @Test
-    void buildCourse_withPartiallyMatchingRegion_returns200() throws Exception {
+    void buildCourse_withPartiallyMatchingRegion_storesSpotRegion() throws Exception {
         jdbcTemplate.update(
                 "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
                 "spot-jeju-1", "제주장소1", "제주도", 33.2, 126.3);
@@ -217,12 +223,36 @@ class CourseApiTest extends IntegrationTestBase {
                 "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
                 "spot-jeju-2", "제주장소2", "제주도", 33.3, 126.4);
 
-        mockMvc.perform(post("/courses")
+        String body = mockMvc.perform(post("/courses")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"regionName": "제주", "spotIds": ["spot-jeju-1", "spot-jeju-2"]}
                                 """))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String shareId = extract(shareResponseBody(extract(body, "courseId")), "shareId");
+        mockMvc.perform(get("/courses/shared/" + shareId))
+                .andExpect(jsonPath("$.regionName").value("제주도"));
+    }
+
+    // 부분 일치라 "주"는 경주와 제주 장소 모두에 걸린다. 지역이 갈리면 코스를 만들지 않는다.
+    @Test
+    void buildCourse_withSpotsFromDifferentRegions_returns400() throws Exception {
+        jdbcTemplate.update(
+                "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
+                "spot-gyeongju", "경주장소", "경주", 35.8, 129.2);
+        jdbcTemplate.update(
+                "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
+                "spot-jeju", "제주장소", "제주", 33.2, 126.3);
+
+        mockMvc.perform(post("/courses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"regionName": "주", "spotIds": ["spot-gyeongju", "spot-jeju"]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COURSE_REGION_MISMATCH"));
     }
 
     private String createCourse() throws Exception {
@@ -243,6 +273,6 @@ class CourseApiTest extends IntegrationTestBase {
     }
 
     private String extract(String json, String field) {
-        return json.split("\"" + field + "\":\"")[1].split("\"")[0];
+        return MAPPER.readTree(json).path(field).asString();
     }
 }

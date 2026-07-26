@@ -35,7 +35,7 @@ public class CourseService {
         if (spots.size() < 2) {
             throw new BusinessException(ErrorCode.INSUFFICIENT_SPOTS, "유효한 장소가 2개 이상 필요합니다.");
         }
-        verifyRegion(request.regionName(), spots);
+        String regionName = resolveRegionName(request.regionName(), spots);
 
         List<Spot> sorted = sortByNearestNeighbor(spots);
 
@@ -45,27 +45,41 @@ public class CourseService {
 
         String courseId = UUID.randomUUID().toString();
         courseRepository.save(courseId, objectMapper.writeValueAsString(
-                new CourseSnapshot(request.regionName(), day1, day2)));
+                new CourseSnapshot(regionName, day1, day2)));
 
         return new CourseResponse(courseId, day1, day2);
     }
 
     /**
-     * 요청 지역에 속하지 않는 장소가 섞였는지 본다. 섞이면 코스도 스냅샷도 틀린 지역을 갖게 된다.
+     * 요청 지역을 검증하고, **스냅샷에 저장할 지역명을 장소에서 유도해** 돌려준다.
      *
-     * <p>판정은 장소를 고를 때 쓰는 규칙과 같아야 한다. `SpotRepository.findByRegionContaining`이
-     * `ILIKE '%지역%'` 부분 일치로 찾으므로 여기서도 대소문자 무시 부분 일치로 본다.
-     * 완전 일치로 보면 `"제주"`로 조회된 `"제주도"` 장소가 검증에서 막혀,
-     * 추천에서 코스 생성으로 이어지는 정상 흐름이 끊긴다.
+     * <p>요청 값을 그대로 저장하지 않는다. 부분 일치로 판정하므로 `"주"` 같은 값을 보내면
+     * 경주와 제주 장소가 섞인 코스도 통과하고 `"주"`가 스냅샷에 박힌다.
+     * 저장하는 값은 서버가 아는 값이어야 한다.
+     *
+     * <p>통과 조건은 둘이다.
+     * <ul>
+     *   <li>모든 장소의 `region_name`이 같은 값일 것 — 하나라도 다르면 지역 밖 장소가 섞인 것이다
+     *   <li>그 값이 요청 지역을 포함할 것 — 장소를 고를 때 쓰는 `ILIKE '%지역%'`과 같은 규칙이다.
+     *       완전 일치로 보면 `"제주"`로 조회된 `"제주도"` 장소가 막혀 정상 흐름이 끊긴다
+     * </ul>
      */
-    private void verifyRegion(String regionName, List<Spot> spots) {
-        String needle = regionName.toLowerCase(Locale.ROOT);
-        boolean allMatch = spots.stream().allMatch(s -> s.getRegionName() != null
-                && s.getRegionName().toLowerCase(Locale.ROOT).contains(needle));
-        if (!allMatch) {
+    private String resolveRegionName(String requested, List<Spot> spots) {
+        Set<String> regions = spots.stream()
+                .map(Spot::getRegionName)
+                .collect(Collectors.toCollection(HashSet::new));
+
+        if (regions.size() != 1 || regions.contains(null)) {
             throw new BusinessException(ErrorCode.COURSE_REGION_MISMATCH,
                     "요청한 지역에 속하지 않는 장소가 있습니다.");
         }
+
+        String resolved = regions.iterator().next();
+        if (!resolved.toLowerCase(Locale.ROOT).contains(requested.toLowerCase(Locale.ROOT))) {
+            throw new BusinessException(ErrorCode.COURSE_REGION_MISMATCH,
+                    "요청한 지역에 속하지 않는 장소가 있습니다.");
+        }
+        return resolved;
     }
 
     /**
