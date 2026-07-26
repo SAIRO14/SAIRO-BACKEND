@@ -50,9 +50,18 @@ public class CourseService {
         return new CourseResponse(courseId, day1, day2);
     }
 
-    // 지역 밖 장소가 섞이면 코스도 스냅샷도 틀린 지역을 갖게 된다.
+    /**
+     * 요청 지역에 속하지 않는 장소가 섞였는지 본다. 섞이면 코스도 스냅샷도 틀린 지역을 갖게 된다.
+     *
+     * <p>판정은 장소를 고를 때 쓰는 규칙과 같아야 한다. `SpotRepository.findByRegionContaining`이
+     * `ILIKE '%지역%'` 부분 일치로 찾으므로 여기서도 대소문자 무시 부분 일치로 본다.
+     * 완전 일치로 보면 `"제주"`로 조회된 `"제주도"` 장소가 검증에서 막혀,
+     * 추천에서 코스 생성으로 이어지는 정상 흐름이 끊긴다.
+     */
     private void verifyRegion(String regionName, List<Spot> spots) {
-        boolean allMatch = spots.stream().allMatch(s -> regionName.equals(s.getRegionName()));
+        String needle = regionName.toLowerCase(Locale.ROOT);
+        boolean allMatch = spots.stream().allMatch(s -> s.getRegionName() != null
+                && s.getRegionName().toLowerCase(Locale.ROOT).contains(needle));
         if (!allMatch) {
             throw new BusinessException(ErrorCode.COURSE_REGION_MISMATCH,
                     "요청한 지역에 속하지 않는 장소가 있습니다.");

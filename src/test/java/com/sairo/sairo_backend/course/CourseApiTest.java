@@ -12,6 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -176,6 +177,52 @@ class CourseApiTest extends IntegrationTestBase {
     void getSharedCourse_withInvalidShareId_returns404() throws Exception {
         mockMvc.perform(get("/courses/shared/not-exist"))
                 .andExpect(status().isNotFound());
+    }
+
+    /**
+     * 코스 영속화 이전에 만들어진 공유 링크도 계속 열려야 한다.
+     *
+     * <p>옛 스냅샷은 {@code day1}·{@code day2}만 담고 있어 지역을 복원할 수 없다.
+     * 조회가 실패하지 않고 {@code regionName}만 null로 나가는 것이 정해진 동작이다.
+     */
+    @Test
+    void getSharedCourse_withLegacySnapshot_returnsNullRegionName() throws Exception {
+        jdbcTemplate.update("""
+                INSERT INTO shared_courses (share_id, course_data) VALUES (?, ?::jsonb)
+                """,
+                "legacy0001", """
+                {"day1":[{"spotId":"spot-a","name":"장소A","lat":33.4,"lng":126.5,"imageUrl":null}],
+                 "day2":[{"spotId":"spot-b","name":"장소B","lat":33.5,"lng":126.6,"imageUrl":null}]}
+                """);
+
+        mockMvc.perform(get("/courses/shared/legacy0001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.regionName").value(nullValue()))
+                .andExpect(jsonPath("$.day1.length()").value(1))
+                .andExpect(jsonPath("$.day2.length()").value(1));
+    }
+
+    /**
+     * 지역 검증은 장소를 고를 때와 같은 부분 일치 규칙이어야 한다.
+     *
+     * <p>장소 조회가 {@code ILIKE '%지역%'}이므로 "제주"로 조회된 "제주도" 장소가
+     * 검증에서 막히면 추천에서 코스 생성으로 이어지는 흐름이 끊긴다.
+     */
+    @Test
+    void buildCourse_withPartiallyMatchingRegion_returns200() throws Exception {
+        jdbcTemplate.update(
+                "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
+                "spot-jeju-1", "제주장소1", "제주도", 33.2, 126.3);
+        jdbcTemplate.update(
+                "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
+                "spot-jeju-2", "제주장소2", "제주도", 33.3, 126.4);
+
+        mockMvc.perform(post("/courses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"regionName": "제주", "spotIds": ["spot-jeju-1", "spot-jeju-2"]}
+                                """))
+                .andExpect(status().isOk());
     }
 
     private String createCourse() throws Exception {
