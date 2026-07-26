@@ -75,7 +75,10 @@ class FlywayBaselineTest extends IntegrationTestBase {
                 .migrate();
 
         // V1은 이미 반영된 상태이므로 다시 실행되지 않아야 한다.
-        assertThat(result.migrationsExecuted).isZero();
+        // 그 뒤의 마이그레이션(V2 이후)은 정상적으로 적용된다.
+        assertThat(result.migrations)
+                .as("V1이 다시 실행되면 이미 있는 테이블 위에 덮어쓰게 된다")
+                .noneMatch(m -> "1".equals(m.version));
 
         try (Connection conn = DriverManager.getConnection(targetUrl, user, password);
              Statement st = conn.createStatement();
@@ -84,8 +87,16 @@ class FlywayBaselineTest extends IntegrationTestBase {
 
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString("version")).isEqualTo("1");
-            assertThat(rs.getString("type")).isEqualTo("BASELINE");
-            assertThat(rs.next()).as("기준선 외에 적용된 마이그레이션이 없어야 한다").isFalse();
+            assertThat(rs.getString("type"))
+                    .as("V1은 실행이 아니라 기준선으로 기록되어야 한다")
+                    .isEqualTo("BASELINE");
+
+            while (rs.next()) {
+                assertThat(rs.getString("version"))
+                        .as("기준선 이후의 마이그레이션만 실행되어야 한다")
+                        .isNotEqualTo("1");
+                assertThat(rs.getString("type")).isEqualTo("SQL");
+            }
         }
     }
 }

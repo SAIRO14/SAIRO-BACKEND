@@ -17,17 +17,25 @@ import java.util.stream.Collectors;
 public class CourseService {
 
     private final SpotRepository spotRepository;
+    private final CourseRepository courseRepository;
     private final SharedCourseRepository sharedCourseRepository;
     private final ObjectMapper objectMapper;
 
     @Value("${app.share-base-url:https://sairo.app/shared}")
     private String shareBaseUrl;
 
+    /**
+     * 코스를 만들어 저장하고 courseId를 발급한다.
+     *
+     * <p>저장하지 않으면 공유와 저장이 코스를 ID로 참조할 수 없다.
+     * 스냅샷에 지역을 함께 담으므로 요청 지역이 실제 장소의 지역과 같은지 먼저 검증한다.
+     */
     public CourseResponse buildCourse(CourseRequest request) {
         List<Spot> spots = spotRepository.findAllById(request.spotIds());
         if (spots.size() < 2) {
             throw new BusinessException(ErrorCode.INSUFFICIENT_SPOTS, "유효한 장소가 2개 이상 필요합니다.");
         }
+        verifyRegion(request.regionName(), spots);
 
         List<Spot> sorted = sortByNearestNeighbor(spots);
 
@@ -35,16 +43,37 @@ public class CourseService {
         List<SpotSummary> day1 = sorted.subList(0, mid).stream().map(SpotSummary::from).collect(Collectors.toList());
         List<SpotSummary> day2 = sorted.subList(mid, sorted.size()).stream().map(SpotSummary::from).collect(Collectors.toList());
 
-        return new CourseResponse(UUID.randomUUID().toString(), day1, day2);
+        String courseId = UUID.randomUUID().toString();
+        courseRepository.save(courseId, objectMapper.writeValueAsString(
+                new CourseSnapshot(request.regionName(), day1, day2)));
+
+        return new CourseResponse(courseId, day1, day2);
     }
 
-    // 직렬화와 저장 모두 공유 생성 실패다. 저장을 try 밖에 두면 DB 장애가
-    // INTERNAL_ERROR로 나가 Swagger에 문서화한 SHARE_CREATION_FAILED와 어긋난다.
-    public ShareCourseResponse shareCourse(ShareCourseRequest request) {
+    // 지역 밖 장소가 섞이면 코스도 스냅샷도 틀린 지역을 갖게 된다.
+    private void verifyRegion(String regionName, List<Spot> spots) {
+        boolean allMatch = spots.stream().allMatch(s -> regionName.equals(s.getRegionName()));
+        if (!allMatch) {
+            throw new BusinessException(ErrorCode.COURSE_REGION_MISMATCH,
+                    "요청한 지역에 속하지 않는 장소가 있습니다.");
+        }
+    }
+
+    /**
+     * 서버가 저장해둔 코스를 읽어 공유 스냅샷을 만든다.
+     *
+     * <p>요청 본문을 받지 않는다. 클라이언트가 보낸 코스를 그대로 저장하면
+     * 서버가 만들지 않은 코스로도 공유 링크를 발급할 수 있다.
+     *
+     * <p>같은 코스를 여러 번 공유해도 링크는 하나다 (리포지토리에서 처리).
+     */
+    public ShareCourseResponse shareCourse(String courseId) {
+        String snapshotJson = courseRepository.findCourseDataById(courseId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COURSE_NOT_FOUND));
+
         String shareId;
         try {
-            String courseDataJson = objectMapper.writeValueAsString(request);
-            shareId = sharedCourseRepository.save(courseDataJson);
+            shareId = sharedCourseRepository.save(courseId, snapshotJson);
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.SHARE_CREATION_FAILED, "공유 코스 저장 실패", e);
         }
@@ -57,8 +86,8 @@ public class CourseService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.SHARED_COURSE_NOT_FOUND));
 
         try {
-            ShareCourseRequest data = objectMapper.readValue(json, ShareCourseRequest.class);
-            return new SharedCourseViewResponse(shareId, data.day1(), data.day2());
+            CourseSnapshot snapshot = objectMapper.readValue(json, CourseSnapshot.class);
+            return new SharedCourseViewResponse(shareId, snapshot.regionName(), snapshot.day1(), snapshot.day2());
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "코스 데이터 역직렬화 실패", e);
         }

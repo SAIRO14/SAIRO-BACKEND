@@ -21,14 +21,17 @@ public class CourseController {
     @Operation(
             summary = "코스 생성",
             description = """
-                    장소 목록을 좌표 기준으로 정렬해 Day 1과 Day 2로 나눈다.
+                    장소 목록을 좌표 기준으로 정렬해 Day 1과 Day 2로 나누고, 결과를 저장한 뒤 `courseId`를 발급한다.
 
                     좌표가 없는 장소는 뒤로 배치한다.
+                    모든 장소는 요청한 `regionName`에 속해야 한다.
+
+                    발급된 `courseId`로 공유 스냅샷을 만들 수 있다.
                     """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "생성 성공"),
-            @ApiResponse(responseCode = "400", description = "INVALID_REQUEST / INSUFFICIENT_SPOTS — 유효한 장소가 2개 미만")
+            @ApiResponse(responseCode = "400", description = "INVALID_REQUEST / INSUFFICIENT_SPOTS — 유효한 장소가 2개 미만 / COURSE_REGION_MISMATCH — 요청 지역과 장소의 지역이 다름")
     })
     @PostMapping
     public CourseResponse buildCourse(@Valid @RequestBody CourseRequest request) {
@@ -38,30 +41,35 @@ public class CourseController {
     @Operation(
             summary = "코스 공유 스냅샷 생성",
             description = """
-                    공유 시점의 코스를 읽기 전용 스냅샷으로 저장하고 공유 링크를 반환한다.
+                    `POST /courses`가 저장해둔 코스를 읽어 읽기 전용 스냅샷으로 남기고 공유 링크를 반환한다.
+                    스냅샷에는 지역과 Day 1·Day 2가 함께 들어간다.
 
-                    **알려진 문제**: 현재 경로의 `courseId`는 사용되지 않고 요청 본문이 그대로 저장된다.
-                    지역 정보도 저장되지 않는다. 서버가 생성한 코스와 연결하도록 바꿔야 한다.
-                    (docs/open-questions.md Q-03)
+                    요청 본문은 받지 않는다. 공유할 내용은 서버가 저장한 코스에서만 가져온다.
+
+                    같은 코스를 여러 번 공유해도 링크는 하나다. 중복 요청에는 같은 `shareId`를 반환한다.
                     """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "공유 스냅샷 생성됨"),
+            @ApiResponse(responseCode = "201", description = "공유 스냅샷 생성됨 (이미 공유된 코스면 기존 링크)"),
+            @ApiResponse(responseCode = "404", description = "COURSE_NOT_FOUND — 해당 코스가 없음"),
             @ApiResponse(responseCode = "500", description = "SHARE_CREATION_FAILED — 스냅샷 저장 실패")
     })
     @PostMapping("/{courseId}/share")
     @ResponseStatus(HttpStatus.CREATED)
     public ShareCourseResponse shareCourse(
-            @Parameter(description = "공유할 코스 ID", required = true)
-            @PathVariable String courseId,
-            @Valid @RequestBody ShareCourseRequest request
+            @Parameter(description = "공유할 코스 ID", required = true, example = "8f14e45f-ea8d-4f4a-9c1b-2c3d4e5f6a7b")
+            @PathVariable String courseId
     ) {
-        return courseService.shareCourse(request);
+        return courseService.shareCourse(courseId);
     }
 
     @Operation(
             summary = "공유 코스 조회",
-            description = "공유 당시 스냅샷을 그대로 반환한다. 읽기 전용이며 편집과 삭제를 제공하지 않는다."
+            description = """
+                    공유 당시 스냅샷을 그대로 반환한다. 지역과 Day 1·Day 2를 포함한다.
+
+                    읽기 전용이며 편집과 삭제를 제공하지 않는다.
+                    """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),

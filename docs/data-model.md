@@ -11,11 +11,16 @@
 ```text
 photos          사진 풀과 임베딩. 추천의 입력.
 spots           관광 장소 마스터. 코스의 재료.
+courses         생성된 코스 스냅샷. 공유와 저장이 참조한다.
 shared_courses  공유 시점의 코스 스냅샷.
 ```
 
-테이블 사이에 외래키가 없다. 스냅샷은 참조가 아니라 **복사본**으로 보관하기 때문이다.
-공유된 코스는 원본 장소 정보가 나중에 바뀌어도 공유 당시 모습을 그대로 재현해야 한다.
+**스냅샷은 참조가 아니라 복사본으로 보관한다.** `courses`와 `shared_courses`는 장소 목록을
+JSONB로 복사해 담고 `spots`를 참조하지 않는다. 공유된 코스는 원본 장소 정보가 나중에 바뀌어도
+공유 당시 모습을 그대로 재현해야 하기 때문이다.
+
+외래키는 `shared_courses.course_id` 하나뿐이며, 이것도 내용을 가져오기 위한 참조가 아니라
+**어느 코스에서 나온 공유인지 남기는 용도**다. ([ADR 0010](./decisions/0010-course-persistence.md))
 
 ## photos
 
@@ -89,6 +94,21 @@ ivfflat은 근사 최근접 인덱스라 **정확도를 일부 포기하고 속�
 `(lat, lng)` 복합 인덱스다. 현재 코드에는 좌표 범위로 조회하는 경로가 없어
 **아직 사용되지 않는다.** 근처 장소 검색이 생기면 그때 쓰인다.
 
+## courses
+
+`POST /courses`가 만든 코스다. 공유와 저장이 코스를 ID로 참조할 수 있게 하려고 저장한다.
+
+| 컬럼 | 타입 | 의미 |
+|---|---|---|
+| `course_id` | TEXT PK | 발급한 코스 ID (UUID) |
+| `course_data` | JSONB NOT NULL | 지역명과 Day 1·Day 2 장소 목록의 스냅샷 |
+| `created_at` | TIMESTAMP NOT NULL | 생성 시각 |
+
+`course_data`의 형태는 `course/CourseSnapshot` 레코드다. **지역명을 함께 담는다.**
+공유 코스는 "지역과 코스의 스냅샷"이므로 지역이 빠지면 공유 상세에서 지역명을 표시할 수 없다.
+
+코스는 만든 뒤 수정하지 않는다. 정리 정책은 아직 없다.
+
 ## shared_courses
 
 공유 버튼을 누른 시점의 코스를 담는 읽기 전용 스냅샷이다.
@@ -96,8 +116,15 @@ ivfflat은 근사 최근접 인덱스라 **정확도를 일부 포기하고 속�
 | 컬럼 | 타입 | 의미 |
 |---|---|---|
 | `share_id` | TEXT PK | 공유 링크에 들어가는 ID. UUID에서 하이픈을 빼고 앞 10자를 쓴다. |
-| `course_data` | JSONB | Day 1과 Day 2 장소 목록의 스냅샷 |
+| `course_id` | TEXT UNIQUE | 이 공유가 어느 코스에서 나왔는지. 코스가 지워지면 NULL이 된다. |
+| `course_data` | JSONB | `courses.course_data`를 복사한 스냅샷 |
 | `created_at` | TIMESTAMP | 생성 시각 |
+
+`course_id`가 유니크라 **한 코스의 공유 링크는 하나뿐이다.** 같은 코스를 다시 공유하면
+새 링크를 만들지 않고 기존 링크를 돌려준다. ([api-contract.md §4 멱등성](./api-contract.md#4-소유권과-멱등성))
+
+이 컬럼이 생기기 전에 만들어진 행에는 값이 없으므로 NULL을 허용한다.
+NULL은 유니크 인덱스에서 여러 개가 허용된다.
 
 ### 왜 JSONB인가
 
@@ -109,13 +136,13 @@ ivfflat은 근사 최근접 인덱스라 **정확도를 일부 포기하고 속�
 
 ### 현재의 한계
 
-`share_id`가 짧아(10자) 규모가 커지면 충돌 확률이 올라간다. 충돌 시 재생성 처리가 필요하다.
-만료 정책도 아직 없다. → [Q-02](./open-questions.md)
+`share_id`가 짧아(10자) 규모가 커지면 충돌 확률이 올라간다.
+충돌하면 `SharedCourseRepository`가 새 ID로 다시 시도한다.
+만료 정책은 아직 없다. → [Q-02](./open-questions.md)
 
 ## 저장되지 않는 데이터
 
 | 데이터 | 현재 위치 | 문제 |
 |---|---|---|
 | 분석 결과 (임베딩·태그) | `AnalysisStore`의 프로세스 메모리 | 재시작 시 소실, TTL 없음, 다중 인스턴스 불가 → [Q-06](./open-questions.md) |
-| 생성된 코스 | 어디에도 저장 안 됨 | `courseId`를 발급하지만 버린다 → [Q-03](./open-questions.md) |
-| 저장 여행지 | 미구현 | → [Q-01](./open-questions.md) |
+| 저장 여행지 | 미구현 | 중복 저장 판정 키가 아직 미정 → [Q-04](./open-questions.md) |

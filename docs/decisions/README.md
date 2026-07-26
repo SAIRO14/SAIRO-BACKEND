@@ -19,6 +19,7 @@
 | [0007](./0007-anonymous-device-id.md) | 익명 기기 ID (X-Device-Id) 인증 방식 | 수용됨 | 2026-07-25 |
 | [0008](./0008-greedy-nearest-neighbor-course-sort.md) | Greedy Nearest-Neighbor 코스 정렬 | 수용됨 | 2026-07-25 |
 | [0009](./0009-tourapi-curated-course-source.md) | 한국관광공사 TourAPI contentTypeId=25 데이터 소스 | 수용됨 | 2026-07-25 |
+| [0010](./0010-course-persistence.md) | 코스를 서버에 영속화 | 수용됨 | 2026-07-26 |
 
 ## 언제 ADR을 쓰나
 

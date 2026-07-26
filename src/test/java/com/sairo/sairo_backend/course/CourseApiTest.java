@@ -22,7 +22,9 @@ class CourseApiTest extends IntegrationTestBase {
 
     @BeforeEach
     void setUp() {
+        // shared_courses가 courses를 참조하므로 순서를 지킨다.
         jdbcTemplate.update("DELETE FROM shared_courses");
+        jdbcTemplate.update("DELETE FROM courses");
         jdbcTemplate.update("DELETE FROM spots");
         jdbcTemplate.update(
                 "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
@@ -36,6 +38,9 @@ class CourseApiTest extends IntegrationTestBase {
         jdbcTemplate.update(
                 "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
                 "spot-d", "장소D", "제주", 33.7, 126.8);
+        jdbcTemplate.update(
+                "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
+                "spot-gangwon", "장소E", "강원", 37.8, 128.9);
     }
 
     @Test
@@ -107,35 +112,90 @@ class CourseApiTest extends IntegrationTestBase {
                 .andExpect(status().isBadRequest());
     }
 
+    // 요청한 지역 밖의 장소가 섞이면 코스도 스냅샷도 틀린 지역을 갖게 된다.
     @Test
-    void shareCourse_returns201WithShareIdAndUrl() throws Exception {
-        MvcResult result = mockMvc.perform(post("/courses/test-course-id/share")
+    void buildCourse_withSpotOutsideRegion_returns400() throws Exception {
+        mockMvc.perform(post("/courses")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {
-                                  "day1": [{"spotId":"spot-a","name":"장소A","lat":33.4,"lng":126.5,"imageUrl":null}],
-                                  "day2": [{"spotId":"spot-b","name":"장소B","lat":33.5,"lng":126.6,"imageUrl":null}]
-                                }
+                                {"regionName": "제주", "spotIds": ["spot-a", "spot-b", "spot-gangwon"]}
                                 """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COURSE_REGION_MISMATCH"));
+    }
+
+    @Test
+    void shareCourse_returns201WithShareIdAndUrl() throws Exception {
+        String courseId = createCourse();
+
+        MvcResult result = mockMvc.perform(post("/courses/" + courseId + "/share"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.shareId").isNotEmpty())
                 .andExpect(jsonPath("$.shareUrl").isNotEmpty())
                 .andReturn();
 
         // 저장된 shareId로 조회 검증
-        String body = result.getResponse().getContentAsString();
-        String shareId = body.split("\"shareId\":\"")[1].split("\"")[0];
+        String shareId = extract(result.getResponse().getContentAsString(), "shareId");
 
         mockMvc.perform(get("/courses/shared/" + shareId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.shareId").value(shareId))
-                .andExpect(jsonPath("$.day1").isArray())
-                .andExpect(jsonPath("$.day2").isArray());
+                .andExpect(jsonPath("$.regionName").value("제주"))
+                .andExpect(jsonPath("$.day1.length()").value(2))
+                .andExpect(jsonPath("$.day2.length()").value(2));
+    }
+
+    /**
+     * 공유 스냅샷은 서버가 저장한 코스에서만 나온다.
+     *
+     * <p>이전에는 경로의 courseId를 무시하고 요청 본문을 그대로 저장해,
+     * 서버가 만들지 않은 코스로도 공유 링크를 받을 수 있었다.
+     */
+    @Test
+    void shareCourse_withUnknownCourseId_returns404() throws Exception {
+        mockMvc.perform(post("/courses/not-a-real-course/share"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+    }
+
+    // 네트워크 재시도나 연속 탭으로 같은 요청이 두 번 도착해도 링크는 하나여야 한다.
+    @Test
+    void shareCourse_calledTwice_returnsSameShareId() throws Exception {
+        String courseId = createCourse();
+
+        String first = extract(shareResponseBody(courseId), "shareId");
+        String second = extract(shareResponseBody(courseId), "shareId");
+
+        assertThat(second).isEqualTo(first);
+        Integer rows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM shared_courses WHERE course_id = ?", Integer.class, courseId);
+        assertThat(rows).isEqualTo(1);
     }
 
     @Test
     void getSharedCourse_withInvalidShareId_returns404() throws Exception {
         mockMvc.perform(get("/courses/shared/not-exist"))
                 .andExpect(status().isNotFound());
+    }
+
+    private String createCourse() throws Exception {
+        String body = mockMvc.perform(post("/courses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"regionName": "제주", "spotIds": ["spot-a", "spot-b", "spot-c", "spot-d"]}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return extract(body, "courseId");
+    }
+
+    private String shareResponseBody(String courseId) throws Exception {
+        return mockMvc.perform(post("/courses/" + courseId + "/share"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    private String extract(String json, String field) {
+        return json.split("\"" + field + "\":\"")[1].split("\"")[0];
     }
 }
