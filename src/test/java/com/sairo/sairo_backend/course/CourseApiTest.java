@@ -7,11 +7,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MvcResult;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -20,9 +22,14 @@ class CourseApiTest extends IntegrationTestBase {
     @Autowired
     JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    ObjectMapper objectMapper;
+
     @BeforeEach
     void setUp() {
+        // FK가 ON DELETE SET NULL이라 순서에 제약은 없다. 읽는 순서대로 지운다.
         jdbcTemplate.update("DELETE FROM shared_courses");
+        jdbcTemplate.update("DELETE FROM courses");
         jdbcTemplate.update("DELETE FROM spots");
         jdbcTemplate.update(
                 "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
@@ -36,6 +43,9 @@ class CourseApiTest extends IntegrationTestBase {
         jdbcTemplate.update(
                 "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
                 "spot-d", "장소D", "제주", 33.7, 126.8);
+        jdbcTemplate.update(
+                "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
+                "spot-gangwon", "장소E", "강원", 37.8, 128.9);
     }
 
     @Test
@@ -107,35 +117,163 @@ class CourseApiTest extends IntegrationTestBase {
                 .andExpect(status().isBadRequest());
     }
 
+    // 요청한 지역 밖의 장소가 섞이면 코스도 스냅샷도 틀린 지역을 갖게 된다.
     @Test
-    void shareCourse_returns201WithShareIdAndUrl() throws Exception {
-        MvcResult result = mockMvc.perform(post("/courses/test-course-id/share")
+    void buildCourse_withSpotOutsideRegion_returns400() throws Exception {
+        mockMvc.perform(post("/courses")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {
-                                  "day1": [{"spotId":"spot-a","name":"장소A","lat":33.4,"lng":126.5,"imageUrl":null}],
-                                  "day2": [{"spotId":"spot-b","name":"장소B","lat":33.5,"lng":126.6,"imageUrl":null}]
-                                }
+                                {"regionName": "제주", "spotIds": ["spot-a", "spot-b", "spot-gangwon"]}
                                 """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COURSE_REGION_MISMATCH"));
+    }
+
+    @Test
+    void shareCourse_returns201WithShareIdAndUrl() throws Exception {
+        String courseId = createCourse();
+
+        MvcResult result = mockMvc.perform(post("/courses/" + courseId + "/share"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.shareId").isNotEmpty())
                 .andExpect(jsonPath("$.shareUrl").isNotEmpty())
                 .andReturn();
 
         // 저장된 shareId로 조회 검증
-        String body = result.getResponse().getContentAsString();
-        String shareId = body.split("\"shareId\":\"")[1].split("\"")[0];
+        String shareId = extract(result.getResponse().getContentAsString(), "shareId");
 
         mockMvc.perform(get("/courses/shared/" + shareId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.shareId").value(shareId))
-                .andExpect(jsonPath("$.day1").isArray())
-                .andExpect(jsonPath("$.day2").isArray());
+                .andExpect(jsonPath("$.regionName").value("제주"))
+                .andExpect(jsonPath("$.day1.length()").value(2))
+                .andExpect(jsonPath("$.day2.length()").value(2));
+    }
+
+    /**
+     * 공유 스냅샷은 서버가 저장한 코스에서만 나온다.
+     *
+     * <p>이전에는 경로의 courseId를 무시하고 요청 본문을 그대로 저장해,
+     * 서버가 만들지 않은 코스로도 공유 링크를 받을 수 있었다.
+     */
+    @Test
+    void shareCourse_withUnknownCourseId_returns404() throws Exception {
+        mockMvc.perform(post("/courses/not-a-real-course/share"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+    }
+
+    // 네트워크 재시도나 연속 탭으로 같은 요청이 두 번 도착해도 링크는 하나여야 한다.
+    @Test
+    void shareCourse_calledTwice_returnsSameShareId() throws Exception {
+        String courseId = createCourse();
+
+        String first = extract(shareResponseBody(courseId), "shareId");
+        String second = extract(shareResponseBody(courseId), "shareId");
+
+        assertThat(second).isEqualTo(first);
+        Integer rows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM shared_courses WHERE course_id = ?", Integer.class, courseId);
+        assertThat(rows).isEqualTo(1);
     }
 
     @Test
     void getSharedCourse_withInvalidShareId_returns404() throws Exception {
         mockMvc.perform(get("/courses/shared/not-exist"))
                 .andExpect(status().isNotFound());
+    }
+
+    /**
+     * 코스 영속화 이전에 만들어진 공유 링크도 계속 열려야 한다.
+     *
+     * <p>옛 스냅샷은 {@code day1}·{@code day2}만 담고 있어 지역을 복원할 수 없다.
+     * 조회가 실패하지 않고 {@code regionName}만 null로 나가는 것이 정해진 동작이다.
+     */
+    @Test
+    void getSharedCourse_withLegacySnapshot_returnsNullRegionName() throws Exception {
+        jdbcTemplate.update("""
+                INSERT INTO shared_courses (share_id, course_data) VALUES (?, ?::jsonb)
+                """,
+                "legacy0001", """
+                {"day1":[{"spotId":"spot-a","name":"장소A","lat":33.4,"lng":126.5,"imageUrl":null}],
+                 "day2":[{"spotId":"spot-b","name":"장소B","lat":33.5,"lng":126.6,"imageUrl":null}]}
+                """);
+
+        mockMvc.perform(get("/courses/shared/legacy0001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.regionName").value(nullValue()))
+                .andExpect(jsonPath("$.day1.length()").value(1))
+                .andExpect(jsonPath("$.day2.length()").value(1));
+    }
+
+    /**
+     * 지역 검증은 장소를 고를 때와 같은 부분 일치 규칙이어야 한다.
+     *
+     * <p>장소 조회가 {@code ILIKE '%지역%'}이므로 "제주"로 조회된 "제주도" 장소가
+     * 검증에서 막히면 추천에서 코스 생성으로 이어지는 흐름이 끊긴다.
+     *
+     * <p>스냅샷에 저장되는 값은 요청한 "제주"가 아니라 장소에서 유도한 "제주도"다.
+     * 요청 값을 그대로 믿으면 "주" 같은 값이 그대로 저장된다.
+     */
+    @Test
+    void buildCourse_withPartiallyMatchingRegion_storesSpotRegion() throws Exception {
+        jdbcTemplate.update(
+                "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
+                "spot-jeju-1", "제주장소1", "제주도", 33.2, 126.3);
+        jdbcTemplate.update(
+                "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
+                "spot-jeju-2", "제주장소2", "제주도", 33.3, 126.4);
+
+        String body = mockMvc.perform(post("/courses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"regionName": "제주", "spotIds": ["spot-jeju-1", "spot-jeju-2"]}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String shareId = extract(shareResponseBody(extract(body, "courseId")), "shareId");
+        mockMvc.perform(get("/courses/shared/" + shareId))
+                .andExpect(jsonPath("$.regionName").value("제주도"));
+    }
+
+    // 부분 일치라 "주"는 경주와 제주 장소 모두에 걸린다. 지역이 갈리면 코스를 만들지 않는다.
+    @Test
+    void buildCourse_withSpotsFromDifferentRegions_returns400() throws Exception {
+        jdbcTemplate.update(
+                "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
+                "spot-gyeongju", "경주장소", "경주", 35.8, 129.2);
+        jdbcTemplate.update(
+                "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
+                "spot-jeju", "제주장소", "제주", 33.2, 126.3);
+
+        mockMvc.perform(post("/courses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"regionName": "주", "spotIds": ["spot-gyeongju", "spot-jeju"]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COURSE_REGION_MISMATCH"));
+    }
+
+    private String createCourse() throws Exception {
+        String body = mockMvc.perform(post("/courses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"regionName": "제주", "spotIds": ["spot-a", "spot-b", "spot-c", "spot-d"]}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return extract(body, "courseId");
+    }
+
+    private String shareResponseBody(String courseId) throws Exception {
+        return mockMvc.perform(post("/courses/" + courseId + "/share"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    private String extract(String json, String field) {
+        return objectMapper.readTree(json).path(field).asString();
     }
 }
