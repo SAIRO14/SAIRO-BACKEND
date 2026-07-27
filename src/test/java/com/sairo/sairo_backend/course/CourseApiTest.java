@@ -19,10 +19,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class CourseApiTest extends IntegrationTestBase {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
     @Autowired
     JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
@@ -273,6 +274,6 @@ class CourseApiTest extends IntegrationTestBase {
     }
 
     private String extract(String json, String field) {
-        return MAPPER.readTree(json).path(field).asString();
+        return objectMapper.readTree(json).path(field).asString();
     }
 }
