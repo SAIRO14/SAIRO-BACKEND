@@ -1,5 +1,7 @@
 package com.sairo.sairo_backend.config;
 
+import com.sairo.sairo_backend.common.DeviceId;
+import com.sairo.sairo_backend.common.DeviceIdArgumentResolver;
 import com.sairo.sairo_backend.common.ErrorResponse;
 import io.swagger.v3.core.converter.AnnotatedType;
 import io.swagger.v3.core.converter.ModelConverters;
@@ -9,9 +11,15 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.media.StringSchema;
 import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springdoc.core.customizers.OperationCustomizer;
+import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.MethodParameter;
+
+import java.util.Optional;
 
 /**
  * Swagger UI: {@code /swagger-ui.html}, OpenAPI 문서: {@code /v3/api-docs}
@@ -22,6 +30,19 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class SwaggerConfig {
+
+    // @DeviceId는 커스텀 리졸버가 채우는 값이라 springdoc이 그대로 두면 쿼리 파라미터로 문서화한다.
+    // 여기서 무시시키고 아래 deviceIdHeaderCustomizer가 헤더 파라미터로 다시 넣는다.
+    static {
+        SpringDocUtils.getConfig().addAnnotationsToIgnore(DeviceId.class);
+    }
+
+    private static final String DEVICE_ID_DESCRIPTION =
+            "익명 사용자 식별자. 앱 최초 실행 시 클라이언트가 생성해 기기에 보관하는 UUID v4다. "
+                    + "형식이 틀리면 400 DEVICE_ID_INVALID.";
+
+    /** UUID v4 예시. 버전 자리(4)와 variant 자리(8·9·a·b)가 실제 검증을 통과하는 값이어야 한다. */
+    private static final String DEVICE_ID_EXAMPLE = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
 
     private static final String ERROR_CONTRACT_DESCRIPTION = """
             사진으로 발견하는 나만의 여행지 — 취향 분석 → 여행지 추천 → 1박 2일 코스 생성
@@ -87,6 +108,31 @@ public class SwaggerConfig {
                             }
                         });
                     }));
+        };
+    }
+
+    /**
+     * {@link DeviceId} 파라미터를 가진 엔드포인트에 {@code X-Device-Id} 헤더를 문서화한다.
+     *
+     * <p>컨트롤러마다 {@code @Parameter(in = HEADER, ...)}를 반복해 적으면 하나만 빠뜨려도
+     * 그 엔드포인트의 명세가 틀어진다. 필수 여부도 구현(파라미터 타입)에서 그대로 끌어온다.
+     */
+    @Bean
+    public OperationCustomizer deviceIdHeaderCustomizer() {
+        return (operation, handlerMethod) -> {
+            for (MethodParameter parameter : handlerMethod.getMethodParameters()) {
+                if (!parameter.hasParameterAnnotation(DeviceId.class)) continue;
+
+                boolean required = parameter.getParameterType() != Optional.class;
+                operation.addParametersItem(new io.swagger.v3.oas.models.parameters.Parameter()
+                        .in("header")
+                        .name(DeviceIdArgumentResolver.HEADER_NAME)
+                        .description(DEVICE_ID_DESCRIPTION)
+                        .required(required)
+                        .example(DEVICE_ID_EXAMPLE)
+                        .schema(new StringSchema().format("uuid")));
+            }
+            return operation;
         };
     }
 
