@@ -19,8 +19,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.MethodParameter;
 
-import java.util.Optional;
-
 /**
  * Swagger UI: {@code /swagger-ui.html}, OpenAPI 문서: {@code /v3/api-docs}
  *
@@ -123,7 +121,7 @@ public class SwaggerConfig {
             for (MethodParameter parameter : handlerMethod.getMethodParameters()) {
                 if (!parameter.hasParameterAnnotation(DeviceId.class)) continue;
 
-                boolean required = parameter.getParameterType() != Optional.class;
+                boolean required = !DeviceIdArgumentResolver.isOptional(parameter);
                 operation.addParametersItem(new io.swagger.v3.oas.models.parameters.Parameter()
                         .in("header")
                         .name(DeviceIdArgumentResolver.HEADER_NAME)

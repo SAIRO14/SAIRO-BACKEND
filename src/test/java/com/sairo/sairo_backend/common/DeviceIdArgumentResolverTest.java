@@ -1,13 +1,18 @@
 package com.sairo.sairo_backend.common;
 
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.MethodParameter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Optional;
+import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -127,5 +132,77 @@ class DeviceIdArgumentResolverTest {
         mockMvc.perform(get("/stub/optional").header(DeviceIdArgumentResolver.HEADER_NAME, VALID_UUID_V4))
                 .andExpect(status().isOk())
                 .andExpect(content().string(VALID_UUID_V4));
+    }
+
+    @Test
+    void optionalDeviceId_withBlankHeader_returnsEmpty() throws Exception {
+        mockMvc.perform(get("/stub/optional").header(DeviceIdArgumentResolver.HEADER_NAME, "   "))
+                .andExpect(status().isOk())
+                .andExpect(content().string(NO_DEVICE_ID));
+    }
+
+    /**
+     * 지원 타입 판정. {@code getParameterType()}은 소거된 원시 타입을 돌려주므로
+     * {@code Optional<UUID>}를 그냥 두면 값을 꺼내는 시점에 ClassCastException 500이 된다.
+     */
+    @Nested
+    class SupportedTypes {
+
+        @SuppressWarnings("unused")
+        static class TypeStub {
+            void required(@DeviceId String deviceId) {}
+
+            void optional(@DeviceId Optional<String> deviceId) {}
+
+            void wrongGeneric(@DeviceId Optional<UUID> deviceId) {}
+
+            @SuppressWarnings("rawtypes")
+            void rawOptional(@DeviceId Optional deviceId) {}
+
+            void wrongType(@DeviceId UUID deviceId) {}
+        }
+
+        private final DeviceIdArgumentResolver resolver = new DeviceIdArgumentResolver();
+
+        private MethodParameter parameterOf(String methodName, Class<?> parameterType) throws Exception {
+            return new MethodParameter(TypeStub.class.getDeclaredMethod(methodName, parameterType), 0);
+        }
+
+        @Test
+        void supportsParameter_withString_isRequired() throws Exception {
+            MethodParameter parameter = parameterOf("required", String.class);
+
+            assertThat(resolver.supportsParameter(parameter)).isTrue();
+            assertThat(DeviceIdArgumentResolver.isOptional(parameter)).isFalse();
+        }
+
+        @Test
+        void supportsParameter_withOptionalString_isOptional() throws Exception {
+            MethodParameter parameter = parameterOf("optional", Optional.class);
+
+            assertThat(resolver.supportsParameter(parameter)).isTrue();
+            assertThat(DeviceIdArgumentResolver.isOptional(parameter)).isTrue();
+        }
+
+        @Test
+        void supportsParameter_withOptionalOfOtherType_fails() throws Exception {
+            MethodParameter parameter = parameterOf("wrongGeneric", Optional.class);
+
+            assertThatIllegalStateException().isThrownBy(() -> resolver.supportsParameter(parameter));
+        }
+
+        @Test
+        void supportsParameter_withRawOptional_fails() throws Exception {
+            MethodParameter parameter = parameterOf("rawOptional", Optional.class);
+
+            assertThatIllegalStateException().isThrownBy(() -> resolver.supportsParameter(parameter));
+        }
+
+        @Test
+        void supportsParameter_withUnsupportedType_fails() throws Exception {
+            MethodParameter parameter = parameterOf("wrongType", UUID.class);
+
+            assertThatIllegalStateException().isThrownBy(() -> resolver.supportsParameter(parameter));
+        }
     }
 }

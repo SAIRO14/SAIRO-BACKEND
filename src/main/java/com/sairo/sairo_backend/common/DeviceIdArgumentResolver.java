@@ -34,12 +34,30 @@ public class DeviceIdArgumentResolver implements HandlerMethodArgumentResolver {
         if (!parameter.hasParameterAnnotation(DeviceId.class)) {
             return false;
         }
-        Class<?> type = parameter.getParameterType();
-        if (type != String.class && type != Optional.class) {
-            throw new IllegalStateException(
-                    "@DeviceId는 String 또는 Optional<String>에만 붙일 수 있다: " + parameter.getExecutable());
-        }
+        isOptional(parameter);
         return true;
+    }
+
+    /**
+     * {@link DeviceId} 파라미터가 선택인지 판정한다. 지원하지 않는 타입이면 즉시 실패한다.
+     *
+     * <p>OpenAPI 문서의 필수 여부도 이 판정을 그대로 쓴다. 두 곳이 따로 판단하면
+     * 명세와 구현이 어긋난다.
+     *
+     * <p>제네릭 인자까지 확인해야 한다. {@code getParameterType()}은 소거된 원시 타입을
+     * 돌려주므로 {@code Optional<UUID>}도 통과하고, 리플렉션 호출은 원시 타입만 보므로
+     * 값을 꺼내는 시점에 가서야 {@code ClassCastException}으로 터진다.
+     */
+    public static boolean isOptional(MethodParameter parameter) {
+        Class<?> type = parameter.getParameterType();
+        if (type == String.class) {
+            return false;
+        }
+        if (type == Optional.class && parameter.nestedIfOptional().getNestedParameterType() == String.class) {
+            return true;
+        }
+        throw new IllegalStateException(
+                "@DeviceId는 String 또는 Optional<String>에만 붙일 수 있다: " + parameter.getExecutable());
     }
 
     @Override
@@ -48,7 +66,7 @@ public class DeviceIdArgumentResolver implements HandlerMethodArgumentResolver {
                                   NativeWebRequest webRequest,
                                   WebDataBinderFactory binderFactory) {
 
-        boolean optional = parameter.getParameterType() == Optional.class;
+        boolean optional = isOptional(parameter);
         String raw = webRequest.getHeader(HEADER_NAME);
 
         // 값이 빈 헤더는 없는 것과 같게 다룬다. 클라이언트가 초기화 전 빈 문자열을 붙여 보내는 경우가 있다.
