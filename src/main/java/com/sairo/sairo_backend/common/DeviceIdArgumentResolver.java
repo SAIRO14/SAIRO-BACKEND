@@ -39,10 +39,14 @@ public class DeviceIdArgumentResolver implements HandlerMethodArgumentResolver {
     }
 
     /**
-     * {@link DeviceId} 파라미터가 선택인지 판정한다. 지원하지 않는 타입이면 즉시 실패한다.
+     * {@link DeviceId} 파라미터가 선택인지 판정한다. 지원하지 않는 타입이면 예외를 던진다.
      *
      * <p>OpenAPI 문서의 필수 여부도 이 판정을 그대로 쓴다. 두 곳이 따로 판단하면
      * 명세와 구현이 어긋난다.
+     *
+     * <p>검증 시점은 기동 시가 아니라 <b>해당 경로를 처음 밟을 때</b>다. 다만 문서 생성도
+     * 같은 판정을 쓰므로, 잘못된 시그니처가 하나라도 있으면 {@code /v3/api-docs} 생성이
+     * 실패하고 {@code OpenApiContractTest}가 CI에서 잡는다.
      *
      * <p>제네릭 인자까지 확인해야 한다. {@code getParameterType()}은 소거된 원시 타입을
      * 돌려주므로 {@code Optional<UUID>}도 통과하고, 리플렉션 호출은 원시 타입만 보므로
@@ -67,7 +71,15 @@ public class DeviceIdArgumentResolver implements HandlerMethodArgumentResolver {
                                   WebDataBinderFactory binderFactory) {
 
         boolean optional = isOptional(parameter);
-        String raw = webRequest.getHeader(HEADER_NAME);
+        String[] values = webRequest.getHeaderValues(HEADER_NAME);
+
+        // 헤더가 여러 번 오면 어느 쪽이 소유자인지 알 수 없다. 이 값은 소유권 판정의 입력이므로
+        // 첫 값을 조용히 고르지 않고 모호한 요청 자체를 거절한다.
+        if (values != null && values.length > 1) {
+            throw new BusinessException(ErrorCode.DEVICE_ID_INVALID);
+        }
+
+        String raw = (values == null || values.length == 0) ? null : values[0];
 
         // 값이 빈 헤더는 없는 것과 같게 다룬다. 클라이언트가 초기화 전 빈 문자열을 붙여 보내는 경우가 있다.
         if (raw == null || raw.isBlank()) {

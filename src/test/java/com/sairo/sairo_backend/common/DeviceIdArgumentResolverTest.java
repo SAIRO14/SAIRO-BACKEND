@@ -134,6 +134,34 @@ class DeviceIdArgumentResolverTest {
                 .andExpect(content().string(VALID_UUID_V4));
     }
 
+    // 앞뒤 공백은 제거하고 판정한다. (api-contract §4)
+    @Test
+    void requiredDeviceId_withSurroundingWhitespace_returnsTrimmedValue() throws Exception {
+        mockMvc.perform(get("/stub/required")
+                        .header(DeviceIdArgumentResolver.HEADER_NAME, "  " + VALID_UUID_V4 + "  "))
+                .andExpect(status().isOk())
+                .andExpect(content().string(VALID_UUID_V4));
+    }
+
+    // 소유자가 둘로 보이는 요청은 첫 값을 고르지 않고 거절한다.
+    @Test
+    void requiredDeviceId_withDuplicateHeaders_returns400() throws Exception {
+        mockMvc.perform(get("/stub/required")
+                        .header(DeviceIdArgumentResolver.HEADER_NAME, VALID_UUID_V4)
+                        .header(DeviceIdArgumentResolver.HEADER_NAME, "9b2fd8e1-4c3a-4f6b-8d21-5e7a0c9b3f14"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("DEVICE_ID_INVALID"));
+    }
+
+    @Test
+    void optionalDeviceId_withDuplicateHeaders_returns400() throws Exception {
+        mockMvc.perform(get("/stub/optional")
+                        .header(DeviceIdArgumentResolver.HEADER_NAME, VALID_UUID_V4)
+                        .header(DeviceIdArgumentResolver.HEADER_NAME, VALID_UUID_V4))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("DEVICE_ID_INVALID"));
+    }
+
     @Test
     void optionalDeviceId_withBlankHeader_returnsEmpty() throws Exception {
         mockMvc.perform(get("/stub/optional").header(DeviceIdArgumentResolver.HEADER_NAME, "   "))

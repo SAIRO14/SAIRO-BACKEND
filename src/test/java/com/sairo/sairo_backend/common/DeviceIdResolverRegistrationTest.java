@@ -2,6 +2,8 @@ package com.sairo.sairo_backend.common;
 
 import com.sairo.sairo_backend.IntegrationTestBase;
 import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.responses.ApiResponse;
+import io.swagger.v3.oas.models.responses.ApiResponses;
 import org.junit.jupiter.api.Test;
 import org.springdoc.core.customizers.OperationCustomizer;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +60,39 @@ class DeviceIdResolverRegistrationTest extends IntegrationTestBase {
             assertThat(parameter.getName()).isEqualTo(DeviceIdArgumentResolver.HEADER_NAME);
             assertThat(parameter.getRequired()).isTrue();
         });
+    }
+
+    // 헤더만 문서화하고 오류를 컨트롤러에 맡기면 저장 API가 늘어날 때마다 빠뜨릴 자리가 생긴다.
+    @Test
+    void deviceIdHeaderCustomizer_documentsRequiredHeaderErrors() throws Exception {
+        Operation operation = customize(StubController.class.getDeclaredMethod("required", String.class));
+
+        assertThat(operation.getResponses().get("400").getDescription())
+                .contains("DEVICE_ID_REQUIRED", "DEVICE_ID_INVALID");
+    }
+
+    // 선택 헤더는 누락이 오류가 아니므로 DEVICE_ID_REQUIRED가 나오면 안 된다.
+    @Test
+    void deviceIdHeaderCustomizer_documentsOptionalHeaderErrors() throws Exception {
+        Operation operation = customize(StubController.class.getDeclaredMethod("optional", Optional.class));
+
+        assertThat(operation.getResponses().get("400").getDescription())
+                .contains("DEVICE_ID_INVALID")
+                .doesNotContain("DEVICE_ID_REQUIRED");
+    }
+
+    // 컨트롤러가 적은 설명이 더 구체적이다. 덮어쓰면 도메인 오류 코드가 사라진다.
+    @Test
+    void deviceIdHeaderCustomizer_keepsExistingErrorDescription() throws Exception {
+        Operation operation = new Operation().responses(new ApiResponses()
+                .addApiResponse("400", new ApiResponse().description("SAVED_TRIP_CONFLICT — 이미 저장함")));
+
+        HandlerMethod handlerMethod = new HandlerMethod(
+                new StubController(), StubController.class.getDeclaredMethod("required", String.class));
+        deviceIdHeaderCustomizer.customize(operation, handlerMethod);
+
+        assertThat(operation.getResponses().get("400").getDescription())
+                .isEqualTo("SAVED_TRIP_CONFLICT — 이미 저장함");
     }
 
     // Optional 파라미터는 선택 헤더로 문서화돼야 한다. (추천 조회·장소 상세)
