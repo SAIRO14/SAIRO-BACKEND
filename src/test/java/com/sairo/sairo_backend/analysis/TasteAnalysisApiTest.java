@@ -86,6 +86,30 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
+    // 중복 ID를 제거하면 5장 미만이 되는 경우 — @Size는 원시 개수만 보므로 서비스에서 추가 검증한다.
+    @Test
+    void tasteAnalysis_withDuplicatePhotoIds_returns400() throws Exception {
+        mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["photo-1", "photo-1", "photo-1", "photo-1", "photo-1"]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PHOTO_SELECTION"));
+    }
+
+    // 유효한 ID가 5장 미만인 경우 — 일부가 DB에 없어도 유효 장수 기준으로 실패한다.
+    @Test
+    void tasteAnalysis_withTooFewValidPhotoIds_returns400() throws Exception {
+        mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["photo-1", "photo-2", "no-3", "no-4", "no-5"]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PHOTO_SELECTION"));
+    }
+
     @Test
     void tasteAnalysis_withInvalidPhotoIds_returns400() throws Exception {
         mockMvc.perform(post("/taste-analysis")

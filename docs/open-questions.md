@@ -93,16 +93,6 @@
 
 ---
 
-## Q-07. 일부 사진 ID가 유효하지 않을 때
-
-**상태:** 열림
-**영향:** 취향 분석 API의 실패 조건
-
-5~10개 중 일부만 유효한 ID일 때 전체를 실패시킬지, 유효한 것만으로 진행할지 정해지지 않았다.
-
-현재 구현은 **하나라도 유효하면 그것들로 진행**하고, 전부 무효일 때만 실패한다.
-이게 의도된 정책인지 확인이 필요하다. 3장만 유효해도 5장 최소 규칙을 우회하게 된다.
-
 ---
 
 ## Q-08. 사진 풀 크기와 추천 지역 개수
@@ -154,3 +144,4 @@
 | 코딩 규약 문서 | AGENTS.md 정본, CLAUDE.md 참조 | [ADR 0004](./decisions/0004-agents-md-as-convention-source.md) |
 | 익명 사용자 ID 전달 방식 | `X-Device-Id` 헤더, UUID v4 | [ADR 0007](./decisions/0007-anonymous-device-id.md), [api-contract.md §4](./api-contract.md#4-소유권과-멱등성) |
 | 코스를 서버에 저장할 것인가 | `courses` 테이블에 저장하고 공유·저장이 참조 | [ADR 0010](./decisions/0010-course-persistence.md), [data-model.md](./data-model.md) |
+| 일부 사진 ID가 유효하지 않을 때 | 중복 제거 후 고유 장수 5 미만 → 400 / 유효 장수 5 미만 → 400, 그 외는 유효한 것으로 진행 | `TasteAnalysisService.analyze` |
