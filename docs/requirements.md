@@ -129,8 +129,6 @@
 
 | 우선순위 | 영역 | 현재 | 필요한 변경 |
 |---|---|---|---|
-| P0 | 사진 풀 | `location`을 응답에 포함 | 선택 API에서 장소 정보 제거 |
-| P0 | 선택 검증 | 1~20장 허용 | 5~10장으로 변경 |
 | P0 | 추천 응답 | 장소 평면 배열 | 지역 카드 구조로 변경 |
 | P0 | 저장 여행지 | 미구현 | 저장·목록·해제와 소유권 구현 |
 | P0 | 분석 저장 | 프로세스 메모리, TTL 없음 | TTL 있는 공유 저장소로 교체 |
@@ -141,7 +139,8 @@
 **완료된 항목:** 오류 계약 표준화([ADR 0001](./decisions/0001-error-response-contract.md)),
 스키마 마이그레이션([ADR 0003](./decisions/0003-flyway-for-schema-migration.md)),
 코스 영속화와 공유 연결·지역 스냅샷·코스 지역 검증([ADR 0010](./decisions/0010-course-persistence.md)),
-`X-Device-Id` 헤더 해석·검증([ADR 0007](./decisions/0007-anonymous-device-id.md), [api-contract §4](./api-contract.md#4-소유권과-멱등성)).
+`X-Device-Id` 헤더 해석·검증([ADR 0007](./decisions/0007-anonymous-device-id.md), [api-contract §4](./api-contract.md#4-소유권과-멱등성)),
+사진 풀 응답 `location` 제거, 취향 분석 선택 검증 5~10장.
 
 ## 7. MVP 완료 조건
 

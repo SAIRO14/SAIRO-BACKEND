@@ -23,13 +23,7 @@ public class PhotoController {
 
     @Operation(
             summary = "사진 풀 조회",
-            description = """
-                    선택 화면에 사용할 사진을 무작위로 반환한다.
-
-                    **알려진 문제**: 현재 응답에 `location`이 포함된다.
-                    사진 선택 단계에서 장소 정보를 노출하지 않는다는 제품 규칙에 어긋나며,
-                    제거 예정이다. 클라이언트는 이 필드를 사용하지 않아야 한다.
-                    """
+            description = "선택 화면에 사용할 사진을 무작위로 반환한다. 응답에는 ID와 이미지 URL만 포함한다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
