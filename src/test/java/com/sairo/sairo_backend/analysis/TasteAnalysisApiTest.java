@@ -24,6 +24,9 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
         jdbcTemplate.update("DELETE FROM photos");
         insertPhoto("photo-1", "테스트1", "http://img1.jpg", "제주", "자연,힐링");
         insertPhoto("photo-2", "테스트2", "http://img2.jpg", "제주", "바다,여유");
+        insertPhoto("photo-3", "테스트3", "http://img3.jpg", "강원", "산,숲");
+        insertPhoto("photo-4", "테스트4", "http://img4.jpg", "강원", "계곡,청정");
+        insertPhoto("photo-5", "테스트5", "http://img5.jpg", "경주", "역사,고즈넉");
     }
 
     @Test
@@ -31,7 +34,7 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
         mockMvc.perform(post("/taste-analysis")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"photoIds": ["photo-1", "photo-2"]}
+                                {"photoIds": ["photo-1", "photo-2", "photo-3", "photo-4", "photo-5"]}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.analysisId").isNotEmpty())
@@ -39,12 +42,37 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.summary").isNotEmpty());
     }
 
+    // 5장 미만은 분석 기준을 충족하지 못한다.
+    @Test
+    void tasteAnalysis_withTooFewPhotoIds_returns400() throws Exception {
+        mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["photo-1", "photo-2", "photo-3", "photo-4"]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    // 10장 초과도 허용하지 않는다.
+    @Test
+    void tasteAnalysis_withTooManyPhotoIds_returns400() throws Exception {
+        String ids = IntStream.rangeClosed(1, 11)
+                .mapToObj(i -> "\"photo-" + i + "\"")
+                .collect(Collectors.joining(", "));
+        mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"photoIds\": [" + ids + "]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
     @Test
     void tasteAnalysis_withInvalidPhotoIds_returns400() throws Exception {
         mockMvc.perform(post("/taste-analysis")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"photoIds": ["no-such-id"]}
+                                {"photoIds": ["no-1", "no-2", "no-3", "no-4", "no-5"]}
                                 """))
                 .andExpect(status().isBadRequest());
     }
@@ -64,12 +92,11 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
         MvcResult result = mockMvc.perform(post("/taste-analysis")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"photoIds": ["photo-1"]}
+                                {"photoIds": ["photo-1", "photo-2", "photo-3", "photo-4", "photo-5"]}
                                 """))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        // analysisId 추출: JSON에서 직접 파싱
         String body = result.getResponse().getContentAsString();
         String analysisId = body.split("\"analysisId\":\"")[1].split("\"")[0];
 
