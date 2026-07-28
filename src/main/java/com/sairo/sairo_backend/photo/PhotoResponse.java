@@ -2,10 +2,9 @@ package com.sairo.sairo_backend.photo;
 
 public record PhotoResponse(
         String id,
-        String imageUrl,
-        String location
+        String imageUrl
 ) {
     static PhotoResponse from(Photo photo) {
-        return new PhotoResponse(photo.getId(), photo.getImageUrl(), photo.getLocation());
+        return new PhotoResponse(photo.getId(), photo.getImageUrl());
     }
 }

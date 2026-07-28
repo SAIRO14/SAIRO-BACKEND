@@ -2,7 +2,6 @@ package com.sairo.sairo_backend.photo;
 
 import com.sairo.sairo_backend.IntegrationTestBase;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -53,10 +52,7 @@ class PhotoApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$[0].embedding").doesNotExist());
     }
 
-    // 현재 응답에는 location이 포함된다. requirements.md의 P0 격차이며,
-    // PhotoResponse에서 필드를 제거하면 이 테스트의 @Disabled를 지운다.
     @Test
-    @Disabled("P0 미해결: PhotoResponse가 아직 location을 노출한다")
     void getPhotos_doesNotExposeLocation() throws Exception {
         mockMvc.perform(get("/photos"))
                 .andExpect(status().isOk())

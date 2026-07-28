@@ -26,15 +26,25 @@ public class TasteAnalysisService {
     private final SpotRepository spotRepository;
     private final AnalysisStore analysisStore;
 
+    private static final int MIN_PHOTO_COUNT = 5;
+
     public TasteAnalysisResponse analyze(List<String> photoIds) {
-        Map<String, float[]> embeddings = embeddingRepository.findEmbeddingsByIds(photoIds);
-        if (embeddings.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_PHOTO_SELECTION, "유효한 사진 ID가 없습니다.");
+        // 중복 ID는 사실상 더 적은 사진으로 분석하는 것과 같다. 중복 제거 후 재확인한다.
+        List<String> uniqueIds = photoIds.stream().distinct().collect(Collectors.toList());
+        if (uniqueIds.size() < MIN_PHOTO_COUNT) {
+            throw new BusinessException(ErrorCode.INVALID_PHOTO_SELECTION,
+                    "중복을 제거하면 5장 미만입니다.");
+        }
+
+        Map<String, float[]> embeddings = embeddingRepository.findEmbeddingsByIds(uniqueIds);
+        if (embeddings.size() < MIN_PHOTO_COUNT) {
+            throw new BusinessException(ErrorCode.INVALID_PHOTO_SELECTION,
+                    "유효한 사진이 5장 미만입니다.");
         }
 
         float[] avgEmbedding = average(new ArrayList<>(embeddings.values()));
 
-        List<Photo> photos = photoRepository.findAllById(photoIds);
+        List<Photo> photos = photoRepository.findAllById(uniqueIds);
         List<String> moodTags = parseMoodTags(photos);
         String analysisId = analysisStore.save(avgEmbedding, moodTags);
 

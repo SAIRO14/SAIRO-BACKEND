@@ -30,7 +30,9 @@ public class TasteAnalysisController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "분석 성공"),
-            @ApiResponse(responseCode = "400", description = "INVALID_REQUEST / INVALID_PHOTO_SELECTION — 사진 ID가 규칙에 맞지 않음")
+            @ApiResponse(responseCode = "400", description = """
+                    INVALID_REQUEST — 개수 범위(5~10장) 위반 / \
+                    INVALID_PHOTO_SELECTION — 중복 제거 후 5장 미만 또는 유효한 사진이 5장 미만""")
     })
     @PostMapping("/taste-analysis")
     public TasteAnalysisResponse analyze(@Valid @RequestBody TasteAnalysisRequest request) {

@@ -24,6 +24,15 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
         jdbcTemplate.update("DELETE FROM photos");
         insertPhoto("photo-1", "테스트1", "http://img1.jpg", "제주", "자연,힐링");
         insertPhoto("photo-2", "테스트2", "http://img2.jpg", "제주", "바다,여유");
+        insertPhoto("photo-3", "테스트3", "http://img3.jpg", "강원", "산,숲");
+        insertPhoto("photo-4", "테스트4", "http://img4.jpg", "강원", "계곡,청정");
+        insertPhoto("photo-5", "테스트5", "http://img5.jpg", "경주", "역사,고즈넉");
+        insertPhoto("photo-6", "테스트6", "http://img6.jpg", "경주", "전통,문화");
+        insertPhoto("photo-7", "테스트7", "http://img7.jpg", "전북", "고요,자연");
+        insertPhoto("photo-8", "테스트8", "http://img8.jpg", "전북", "숲,산책");
+        insertPhoto("photo-9", "테스트9", "http://img9.jpg", "충남", "바다,노을");
+        insertPhoto("photo-10", "테스트10", "http://img10.jpg", "충남", "갯벌,체험");
+        insertPhoto("photo-11", "테스트11", "http://img11.jpg", "서울", "도시,야경");
     }
 
     @Test
@@ -31,7 +40,7 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
         mockMvc.perform(post("/taste-analysis")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"photoIds": ["photo-1", "photo-2"]}
+                                {"photoIds": ["photo-1", "photo-2", "photo-3", "photo-4", "photo-5"]}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.analysisId").isNotEmpty())
@@ -39,12 +48,74 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.summary").isNotEmpty());
     }
 
+    // 5장 미만은 분석 기준을 충족하지 못한다.
+    @Test
+    void tasteAnalysis_withTooFewPhotoIds_returns400() throws Exception {
+        mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["photo-1", "photo-2", "photo-3", "photo-4"]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    // 10장은 상한 경계로 허용된다.
+    @Test
+    void tasteAnalysis_withMaxPhotoIds_returns200() throws Exception {
+        mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["photo-1", "photo-2", "photo-3", "photo-4", "photo-5",
+                                              "photo-6", "photo-7", "photo-8", "photo-9", "photo-10"]}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.analysisId").isNotEmpty());
+    }
+
+    // 10장 초과는 허용하지 않는다. photo-1~11은 모두 DB에 존재하며, 개수(11)가 거절 원인이다.
+    @Test
+    void tasteAnalysis_withTooManyPhotoIds_returns400() throws Exception {
+        mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["photo-1", "photo-2", "photo-3", "photo-4", "photo-5",
+                                              "photo-6", "photo-7", "photo-8", "photo-9", "photo-10", "photo-11"]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    // 중복 ID를 제거하면 5장 미만이 되는 경우 — @Size는 원시 개수만 보므로 서비스에서 추가 검증한다.
+    @Test
+    void tasteAnalysis_withDuplicatePhotoIds_returns400() throws Exception {
+        mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["photo-1", "photo-1", "photo-1", "photo-1", "photo-1"]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PHOTO_SELECTION"));
+    }
+
+    // 유효한 ID가 5장 미만인 경우 — 일부가 DB에 없어도 유효 장수 기준으로 실패한다.
+    @Test
+    void tasteAnalysis_withTooFewValidPhotoIds_returns400() throws Exception {
+        mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["photo-1", "photo-2", "no-3", "no-4", "no-5"]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PHOTO_SELECTION"));
+    }
+
     @Test
     void tasteAnalysis_withInvalidPhotoIds_returns400() throws Exception {
         mockMvc.perform(post("/taste-analysis")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"photoIds": ["no-such-id"]}
+                                {"photoIds": ["no-1", "no-2", "no-3", "no-4", "no-5"]}
                                 """))
                 .andExpect(status().isBadRequest());
     }
@@ -64,12 +135,11 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
         MvcResult result = mockMvc.perform(post("/taste-analysis")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"photoIds": ["photo-1"]}
+                                {"photoIds": ["photo-1", "photo-2", "photo-3", "photo-4", "photo-5"]}
                                 """))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        // analysisId 추출: JSON에서 직접 파싱
         String body = result.getResponse().getContentAsString();
         String analysisId = body.split("\"analysisId\":\"")[1].split("\"")[0];
 
