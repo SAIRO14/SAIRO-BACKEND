@@ -88,9 +88,15 @@ SELECT * FROM spots WHERE region_name ILIKE '%' || :region || '%' LIMIT 5
 
 지역명 부분 일치로 장소를 최대 5개 가져온다.
 
+장소가 **2개 미만**인 지역은 추천 대상에서 제외한다.
+대표 장소는 최대 2개를 미리보기로 제공한다.
+
+추천 응답은 지역 카드 배열(`regions`)로 구성된다.
+각 카드는 `regionId`(MVP에서 `regionName`과 동일), `regionName`, `imageUrl`,
+`reason`(분위기 태그 기반 문구), `saved`(저장 여부, 현재 항상 false), `previewSpots`(최대 2개)를 담는다.
+
 **한계** — 부분 일치라 의도하지 않은 지역이 걸릴 수 있다.
-장소가 2개 미만인 지역은 코스를 만들 수 없으므로 추천 대상에서 빼야 하는데,
-현재는 그 필터가 없다.
+`reason`은 분위기 태그에서 하나를 골라 만들므로 모든 지역 카드가 같은 이유 문구를 가진다.
 
 ## 3. 코스 생성
 
@@ -148,6 +154,8 @@ SELECT * FROM spots WHERE region_name ILIKE '%' || :region || '%' LIMIT 5
 | 유사 사진 검색 수 | 30 | `TasteAnalysisService.SIMILAR_PHOTO_LIMIT` |
 | 추천 지역 수 | 3 | `TasteAnalysisService.TOP_REGION_COUNT` |
 | 지역별 장소 수 | 5 | `TasteAnalysisService.SPOTS_PER_REGION` |
+| 지역 카드 최소 장소 수 | 2 | `TasteAnalysisService.MIN_SPOTS_FOR_REGION` |
+| 대표 장소 미리보기 수 | 2 | `TasteAnalysisService.PREVIEW_SPOT_COUNT` |
 | 분위기 태그 후보 수 | 5 | `parseMoodTags` 내부 |
 | 사진 풀 기본 크기 | 40 | `PhotoController` 기본 파라미터 |
 | ivfflat lists | 50 | `V1__init_schema.sql` |
@@ -159,7 +167,6 @@ SELECT * FROM spots WHERE region_name ILIKE '%' || :region || '%' LIMIT 5
 우선순위 판단용 목록이다. 지금 당장 해야 하는 일은 아니다.
 
 - 광역 단위 지역명 정규화
-- 장소가 2개 미만인 지역을 추천에서 제외
 - 키워드에서 장소명과 분위기어 분리
 - 지역명 부분 일치 조회의 오탐 제거
 - 코스 경로 품질 평가

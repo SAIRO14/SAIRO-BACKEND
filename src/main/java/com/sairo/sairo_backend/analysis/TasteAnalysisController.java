@@ -1,5 +1,6 @@
 package com.sairo.sairo_backend.analysis;
 
+import com.sairo.sairo_backend.common.DeviceId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -8,6 +9,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
 
 /**
  * 두 엔드포인트의 최상위 경로가 서로 달라({@code /taste-analysis}, {@code /recommendations})
@@ -41,7 +44,12 @@ public class TasteAnalysisController {
 
     @Operation(
             summary = "추천 조회",
-            description = "분석 ID로 계산된 취향과 가까운 지역 추천 결과를 반환한다."
+            description = """
+                    분석 ID로 계산된 취향과 가까운 지역 카드를 반환한다.
+                    지역 카드에는 지역명, 대표 이미지, 추천 이유, 대표 장소 최대 2개, 저장 여부가 담긴다.
+                    장소가 2개 미만인 지역은 결과에서 제외된다. 0개도 정상 응답이다.
+                    X-Device-Id 헤더가 있으면 저장 여부를 함께 내려준다. (현재 항상 false)
+                    """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
@@ -51,7 +59,8 @@ public class TasteAnalysisController {
     @GetMapping("/recommendations")
     public RecommendationResponse recommend(
             @Parameter(description = "취향 분석 API가 발급한 분석 ID", required = true)
-            @RequestParam String analysisId
+            @RequestParam String analysisId,
+            @DeviceId Optional<String> deviceId
     ) {
         return tasteAnalysisService.recommend(analysisId);
     }
