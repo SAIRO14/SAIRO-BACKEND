@@ -21,7 +21,7 @@
 | **코스 스냅샷** | 지역과 Day 1·Day 2를 함께 담아 저장하는 형태 | `CourseSnapshot`, `course_data` |
 | **저장 여행지** | 사용자가 저장한 추천 지역과 당시 코스의 스냅샷 | 미구현 → [Q-04](./open-questions.md) |
 | **공유 코스** | 공유 시점의 지역과 코스를 담은 읽기 전용 스냅샷 | `shared_courses`, `shareId` |
-| **익명 사용자 ID** | 로그인 없이 사용자를 구분하는 기기 생성 UUID v4 | `X-Device-Id` 헤더, `DEVICE_ID_*` 오류 코드 |
+| **익명 사용자 ID** | 로그인 없이 사용자를 구분하는 기기 생성 UUID v4 | `X-Device-Id` 헤더, `@DeviceId` 파라미터, `DEVICE_ID_*` 오류 코드 |
 
 ## 헷갈리기 쉬운 구분
 
