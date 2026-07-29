@@ -17,9 +17,11 @@ public record SavedTripRequest(
         // 서버가 발급한 적 없는 형식이므로 400으로 거절하는 편이 정직하다.
         // (@DeviceId는 클라이언트가 생성하는 값이라 소문자로 정규화한다. 성격이 다르다.)
         @NotBlank
+        // 버전 자리(4)와 IETF variant(8·9·a·b)까지 본다. courseId는 UUID.randomUUID()로
+        // 발급되므로 항상 v4다. 대문자를 거절하는 것과 같은 이유로 비-v4도 걸러야 논리가 맞는다.
         @Pattern(
-                regexp = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                message = "courseId는 소문자 UUID 정규형이어야 합니다."
+                regexp = "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                message = "courseId는 소문자 UUID v4 정규형이어야 합니다."
         )
         @Schema(description = "저장할 코스 ID", example = "8f14e45f-ea8d-4f4a-9c1b-2c3d4e5f6a7b")
         String courseId

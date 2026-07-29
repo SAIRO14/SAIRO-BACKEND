@@ -5,7 +5,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 
 public record SavedTripResponse(
-        @Schema(description = "저장 항목 ID", example = "1f0a2b3c-4d5e-6f70-8192-a3b4c5d6e7f8")
+        // 예시는 실제 검증을 통과하는 UUID v4여야 한다. 버전 자리는 4, variant 자리는 8·9·a·b다.
+        @Schema(description = "저장 항목 ID", example = "1f0a2b3c-4d5e-4f70-8192-a3b4c5d6e7f8")
         String savedTripId,
         @Schema(description = "저장된 코스 ID. 같은 코스를 다시 저장하면 처음 저장할 때의 값이 그대로 나온다.")
         String courseId,
