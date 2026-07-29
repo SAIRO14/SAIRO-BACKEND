@@ -67,10 +67,10 @@ public class TasteAnalysisService {
         List<RecommendationResponse.RegionCard> regions = topRegions.stream()
                 .map(region -> Map.entry(region, spotRepository.findByRegionContaining(region, SPOTS_PER_REGION)))
                 .filter(e -> !e.getValue().isEmpty())
+                .filter(e -> e.getValue().get(0).getRegionName() != null)
                 .map(e -> {
                     // 부분 일치 조회라 서로 다른 region_name 장소가 섞일 수 있다. 첫 장소 기준으로 정규화한다.
                     String canonical = e.getValue().get(0).getRegionName();
-                    if (canonical == null) return Map.entry(e.getKey(), List.<Spot>of());
                     List<Spot> consistent = e.getValue().stream()
                             .filter(s -> canonical.equals(s.getRegionName()))
                             .collect(Collectors.toList());
