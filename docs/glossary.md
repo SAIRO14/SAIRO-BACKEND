@@ -49,7 +49,7 @@
 | 식별자 | 수명 | 서버 저장 |
 |---|---|---|
 | `analysisId` | 임시 | 프로세스 메모리 (TTL 없음) |
-| `courseId` | 영구 | `courses` |
+| `courseId` | 영구 | `courses` (소유자 있음) |
 | `shareId` | 영구 | `shared_courses` |
 | `savedTripId` | 영구 | `saved_trips` |
 
@@ -71,7 +71,7 @@
 | DB 컬럼 | snake_case | `image_url`, `region_name` |
 | 오류 코드 | UPPER_SNAKE_CASE, 원인 단위 | `ANALYSIS_NOT_FOUND` |
 | URI | 복수형 명사 | `/photos`, `/courses` |
-| 마이그레이션 | `V<번호>__<설명>.sql` | `V2__add_saved_trips.sql` |
+| 마이그레이션 | `V<번호>__<설명>.sql` | `V3__add_saved_trips.sql` |
 
 ## 이 저장소에서 쓰지 않는 말
 

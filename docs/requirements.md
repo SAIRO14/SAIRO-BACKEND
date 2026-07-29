@@ -143,7 +143,9 @@
 스키마 마이그레이션([ADR 0003](./decisions/0003-flyway-for-schema-migration.md)),
 코스 영속화와 공유 연결·지역 스냅샷·코스 지역 검증([ADR 0010](./decisions/0010-course-persistence.md)),
 `X-Device-Id` 헤더 해석·검증([ADR 0007](./decisions/0007-anonymous-device-id.md), [api-contract §4](./api-contract.md#4-소유권과-멱등성)),
-사진 풀 응답 `location` 제거, 취향 분석 선택 검증 5~10장.
+사진 풀 응답 `location` 제거, 취향 분석 선택 검증 5~10장,
+저장 여행지 생성과 중복 판정([ADR 0011](./decisions/0011-saved-trip-identity.md)),
+코스 소유권([ADR 0012](./decisions/0012-course-ownership.md)).
 
 ## 7. MVP 완료 조건
 

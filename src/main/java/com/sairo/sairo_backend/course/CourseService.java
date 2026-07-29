@@ -29,8 +29,10 @@ public class CourseService {
      *
      * <p>저장하지 않으면 공유와 저장이 코스를 ID로 참조할 수 없다.
      * 스냅샷에 지역을 함께 담으므로 요청 지역이 실제 장소의 지역과 같은지 먼저 검증한다.
+     *
+     * <p>만든 기기를 소유자로 기록한다. 이후 공유와 저장은 소유자만 할 수 있다. (ADR 0012)
      */
-    public CourseResponse buildCourse(CourseRequest request) {
+    public CourseResponse buildCourse(String deviceId, CourseRequest request) {
         List<Spot> spots = spotRepository.findAllById(request.spotIds());
         if (spots.size() < 2) {
             throw new BusinessException(ErrorCode.INSUFFICIENT_SPOTS, "유효한 장소가 2개 이상 필요합니다.");
@@ -44,7 +46,7 @@ public class CourseService {
         List<SpotSummary> day2 = sorted.subList(mid, sorted.size()).stream().map(SpotSummary::from).collect(Collectors.toList());
 
         String courseId = UUID.randomUUID().toString();
-        courseRepository.save(courseId, objectMapper.writeValueAsString(
+        courseRepository.save(courseId, deviceId, objectMapper.writeValueAsString(
                 new CourseSnapshot(regionName, day1, day2)));
 
         return new CourseResponse(courseId, day1, day2);
@@ -89,9 +91,14 @@ public class CourseService {
      * 서버가 만들지 않은 코스로도 공유 링크를 발급할 수 있다.
      *
      * <p>같은 코스를 여러 번 공유해도 링크는 하나다 (리포지토리에서 처리).
+     *
+     * <p><b>자기가 만든 코스만 공유할 수 있다.</b> 남의 코스는 없는 것과 같게 404다.
+     * 403이면 그 ID가 존재한다는 사실을 알려주게 된다. (docs/api-contract.md §4)
+     *
+     * <p>공유 <i>조회</i>는 그대로 공개다. 공유 링크는 남에게 보내라고 만든 것이다.
      */
-    public ShareCourseResponse shareCourse(String courseId) {
-        String snapshotJson = courseRepository.findCourseDataById(courseId)
+    public ShareCourseResponse shareCourse(String deviceId, String courseId) {
+        String snapshotJson = courseRepository.findCourseDataByIdAndDeviceId(courseId, deviceId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COURSE_NOT_FOUND));
 
         String shareId;
