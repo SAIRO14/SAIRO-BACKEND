@@ -65,17 +65,24 @@ public class TasteAnalysisService {
         String reason = MoodReasonMapper.from(entry.moodTags());
 
         List<RecommendationResponse.RegionCard> regions = topRegions.stream()
-                .map(region -> spotRepository.findByRegionContaining(region, SPOTS_PER_REGION))
-                .filter(spots -> spots.size() >= MIN_SPOTS_FOR_REGION)
-                .map(spots -> buildRegionCard(spots, reason))
+                .map(region -> Map.entry(region, spotRepository.findByRegionContaining(region, SPOTS_PER_REGION)))
+                .filter(e -> !e.getValue().isEmpty())
+                .map(e -> {
+                    // 부분 일치 조회라 서로 다른 region_name 장소가 섞일 수 있다. 첫 장소 기준으로 정규화한다.
+                    String canonical = e.getValue().get(0).getRegionName();
+                    List<Spot> consistent = e.getValue().stream()
+                            .filter(s -> canonical.equals(s.getRegionName()))
+                            .collect(Collectors.toList());
+                    return Map.entry(e.getKey(), consistent);
+                })
+                .filter(e -> e.getValue().size() >= MIN_SPOTS_FOR_REGION)
+                .map(e -> buildRegionCard(e.getKey(), e.getValue(), reason))
                 .collect(Collectors.toList());
 
         return new RecommendationResponse(entry.moodTags(), regions);
     }
 
-    private RecommendationResponse.RegionCard buildRegionCard(List<Spot> spots, String reason) {
-        assert spots.size() >= MIN_SPOTS_FOR_REGION : "caller must pre-filter regions with fewer than MIN_SPOTS_FOR_REGION spots";
-        String regionName = spots.get(0).getRegionName();
+    private RecommendationResponse.RegionCard buildRegionCard(String region, List<Spot> spots, String reason) {
         String imageUrl = spots.stream()
                 .map(Spot::getImageUrl)
                 .filter(Objects::nonNull)
@@ -85,7 +92,7 @@ public class TasteAnalysisService {
                 .limit(PREVIEW_SPOT_COUNT)
                 .map(s -> new RecommendationResponse.PreviewSpot(s.getSpotId(), s.getName()))
                 .collect(Collectors.toList());
-        return new RecommendationResponse.RegionCard(regionName, regionName, imageUrl, reason, false, previewSpots);
+        return new RecommendationResponse.RegionCard(region, region, imageUrl, reason, false, previewSpots);
     }
 
     // location 형식: "경상북도 안동", "제주도" 등 — 첫 번째 공백 이전 단어가 광역 지자체명
