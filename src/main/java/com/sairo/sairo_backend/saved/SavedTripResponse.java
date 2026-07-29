@@ -14,6 +14,8 @@ public record SavedTripResponse(
         @Schema(description = "저장 시각")
         LocalDateTime createdAt
 ) {
+    // regionKey → regionName으로 이름이 바뀐다. 같은 값이다.
+    // DB에서는 중복 판정 키로 쓰이고(region_key), 응답에서는 화면에 그대로 표시된다.
     static SavedTripResponse from(SavedTrip savedTrip) {
         return new SavedTripResponse(
                 savedTrip.savedTripId(),
