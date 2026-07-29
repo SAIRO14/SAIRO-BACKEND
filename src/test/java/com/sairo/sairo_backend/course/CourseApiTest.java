@@ -19,6 +19,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class CourseApiTest extends IntegrationTestBase {
 
+    private static final String DEVICE_A = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    private static final String DEVICE_B = "9b2d4e6f-1a3c-4b5d-8e7f-0a1b2c3d4e5f";
+
     @Autowired
     JdbcTemplate jdbcTemplate;
 
@@ -51,6 +54,7 @@ class CourseApiTest extends IntegrationTestBase {
     @Test
     void buildCourse_withValidSpots_returns200WithDay1AndDay2() throws Exception {
         mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", DEVICE_A)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"regionName": "제주", "spotIds": ["spot-a", "spot-b", "spot-c", "spot-d"]}
@@ -83,6 +87,7 @@ class CourseApiTest extends IntegrationTestBase {
     @Test
     void buildCourse_startsFromNorthernmostSpot() throws Exception {
         mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", DEVICE_A)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"regionName": "제주", "spotIds": ["spot-a", "spot-b", "spot-c", "spot-d"]}
@@ -93,6 +98,7 @@ class CourseApiTest extends IntegrationTestBase {
 
     private String courseSpotOrder(String spotIdsJson) throws Exception {
         String body = mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", DEVICE_A)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"regionName\": \"제주\", \"spotIds\": " + spotIdsJson + "}"))
                 .andExpect(status().isOk())
@@ -110,6 +116,7 @@ class CourseApiTest extends IntegrationTestBase {
     @Test
     void buildCourse_withTooFewSpots_returns400() throws Exception {
         mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", DEVICE_A)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"regionName": "제주", "spotIds": ["spot-a"]}
@@ -121,6 +128,7 @@ class CourseApiTest extends IntegrationTestBase {
     @Test
     void buildCourse_withSpotOutsideRegion_returns400() throws Exception {
         mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", DEVICE_A)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"regionName": "제주", "spotIds": ["spot-a", "spot-b", "spot-gangwon"]}
@@ -133,7 +141,7 @@ class CourseApiTest extends IntegrationTestBase {
     void shareCourse_returns201WithShareIdAndUrl() throws Exception {
         String courseId = createCourse();
 
-        MvcResult result = mockMvc.perform(post("/courses/" + courseId + "/share"))
+        MvcResult result = mockMvc.perform(post("/courses/" + courseId + "/share").header("X-Device-Id", DEVICE_A))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.shareId").isNotEmpty())
                 .andExpect(jsonPath("$.shareUrl").isNotEmpty())
@@ -156,9 +164,45 @@ class CourseApiTest extends IntegrationTestBase {
      * <p>이전에는 경로의 courseId를 무시하고 요청 본문을 그대로 저장해,
      * 서버가 만들지 않은 코스로도 공유 링크를 받을 수 있었다.
      */
+    /**
+     * 남의 코스는 공유할 수 없다. 403이 아니라 404다.
+     *
+     * <p>403이면 "그 courseId는 존재한다"는 사실을 알려주게 된다. (docs/api-contract.md §4)
+     */
+    @Test
+    void shareCourse_withAnotherDevicesCourse_returns404() throws Exception {
+        String courseId = createCourse();
+
+        mockMvc.perform(post("/courses/" + courseId + "/share").header("X-Device-Id", DEVICE_B))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+    }
+
+    @Test
+    void buildCourse_withoutDeviceIdHeader_returns400() throws Exception {
+        mockMvc.perform(post("/courses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"regionName": "제주", "spotIds": ["spot-a", "spot-b"]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("DEVICE_ID_REQUIRED"));
+    }
+
+    // 공유 링크 조회는 소유자를 보지 않는다. 남에게 보내라고 만든 것이다.
+    @Test
+    void getSharedCourse_isPublicRegardlessOfDevice() throws Exception {
+        String shareId = extract(shareResponseBody(createCourse()), "shareId");
+
+        mockMvc.perform(get("/courses/shared/" + shareId).header("X-Device-Id", DEVICE_B))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/courses/shared/" + shareId))
+                .andExpect(status().isOk());
+    }
+
     @Test
     void shareCourse_withUnknownCourseId_returns404() throws Exception {
-        mockMvc.perform(post("/courses/not-a-real-course/share"))
+        mockMvc.perform(post("/courses/not-a-real-course/share").header("X-Device-Id", DEVICE_A))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
     }
@@ -245,6 +289,7 @@ class CourseApiTest extends IntegrationTestBase {
                 "spot-jeju-2", "제주장소2", "제주도", 33.3, 126.4);
 
         String body = mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", DEVICE_A)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"regionName": "제주", "spotIds": ["spot-jeju-1", "spot-jeju-2"]}
@@ -268,6 +313,7 @@ class CourseApiTest extends IntegrationTestBase {
                 "spot-jeju", "제주장소", "제주", 33.2, 126.3);
 
         mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", DEVICE_A)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"regionName": "주", "spotIds": ["spot-gyeongju", "spot-jeju"]}
@@ -278,6 +324,7 @@ class CourseApiTest extends IntegrationTestBase {
 
     private String createCourse() throws Exception {
         String body = mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", DEVICE_A)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"regionName": "제주", "spotIds": ["spot-a", "spot-b", "spot-c", "spot-d"]}
@@ -288,7 +335,7 @@ class CourseApiTest extends IntegrationTestBase {
     }
 
     private String shareResponseBody(String courseId) throws Exception {
-        return mockMvc.perform(post("/courses/" + courseId + "/share"))
+        return mockMvc.perform(post("/courses/" + courseId + "/share").header("X-Device-Id", DEVICE_A))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
     }

@@ -143,7 +143,9 @@
 코스 영속화와 공유 연결·지역 스냅샷·코스 지역 검증([ADR 0010](./decisions/0010-course-persistence.md)),
 `X-Device-Id` 헤더 해석·검증([ADR 0007](./decisions/0007-anonymous-device-id.md), [api-contract §4](./api-contract.md#4-소유권과-멱등성)),
 사진 풀 응답 `location` 제거, 취향 분석 선택 검증 5~10장,
-추천 응답 지역 카드 구조 변경 (RegionCard · 장소 2개 미만 지역 제외 · 대표 장소 2개 미리보기 · 추천 이유).
+추천 응답 지역 카드 구조 변경 (RegionCard · 장소 2개 미만 지역 제외 · 대표 장소 2개 미리보기 · 추천 이유),
+저장 여행지 생성과 중복 판정([ADR 0011](./decisions/0011-saved-trip-identity.md)),
+코스 소유권([ADR 0012](./decisions/0012-course-ownership.md)).
 
 ## 7. MVP 완료 조건
 

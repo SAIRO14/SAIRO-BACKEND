@@ -100,17 +100,39 @@ class SavedTripApiTest extends IntegrationTestBase {
         assertThat(savedTripCount(DEVICE_A)).isEqualTo(2);
     }
 
-    // 중복 판정은 기기별로 갈린다. 다른 기기의 저장이 내 저장을 막으면 안 된다.
+    /**
+     * 중복 판정은 기기별로 갈린다. 다른 기기의 저장이 내 저장을 막으면 안 된다.
+     *
+     * <p>코스도 기기별 소유물이므로 각자 자기 코스를 만들어 저장한다.
+     * 장소 구성이 같으니 지문은 같지만 {@code device_id}가 달라 별도 항목이다.
+     */
     @Test
-    void save_withSameCourseFromDifferentDevice_createsSeparateSavedTrip() throws Exception {
-        String courseId = createCourse("제주도", "\"spot-a\", \"spot-b\", \"spot-c\", \"spot-d\"");
+    void save_withSameSpotsFromDifferentDevice_createsSeparateSavedTrip() throws Exception {
+        String spots = "\"spot-a\", \"spot-b\", \"spot-c\", \"spot-d\"";
+        String courseOfA = createCourse(DEVICE_A, "제주도", spots);
+        String courseOfB = createCourse(DEVICE_B, "제주도", spots);
 
-        String savedByA = extract(saveResponseBody(DEVICE_A, courseId), "savedTripId");
-        String savedByB = extract(saveResponseBody(DEVICE_B, courseId), "savedTripId");
+        String savedByA = extract(saveResponseBody(DEVICE_A, courseOfA), "savedTripId");
+        String savedByB = extract(saveResponseBody(DEVICE_B, courseOfB), "savedTripId");
 
         assertThat(savedByB).isNotEqualTo(savedByA);
         assertThat(savedTripCount(DEVICE_A)).isEqualTo(1);
         assertThat(savedTripCount(DEVICE_B)).isEqualTo(1);
+    }
+
+    /**
+     * 남의 코스는 저장할 수 없다. 403이 아니라 404다.
+     *
+     * <p>이 PR 이전에는 courseId만 알면 남의 코스를 내 저장 목록에 넣을 수 있었다. (ADR 0012)
+     */
+    @Test
+    void save_withAnotherDevicesCourse_returns404() throws Exception {
+        String courseOfA = createCourse(DEVICE_A, "제주도", "\"spot-a\", \"spot-b\", \"spot-c\", \"spot-d\"");
+
+        mockMvc.perform(saveRequest(DEVICE_B, courseOfA))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+        assertThat(savedTripCount(DEVICE_B)).isZero();
     }
 
     // 형식은 맞지만 대상이 없는 경우다. 형식 오류(아래)와 구분한다.
@@ -178,8 +200,8 @@ class SavedTripApiTest extends IntegrationTestBase {
     void save_withUnreadableCourseSnapshot_returns500() throws Exception {
         String courseId = UUID.randomUUID().toString();
         jdbcTemplate.update(
-                "INSERT INTO courses (course_id, course_data) VALUES (?, ?::jsonb)",
-                courseId, """
+                "INSERT INTO courses (course_id, device_id, course_data) VALUES (?, ?, ?::jsonb)",
+                courseId, DEVICE_A, """
                         {"regionName":"제주도","day1":"배열이 아니다","day2":[]}
                         """);
 
@@ -211,7 +233,12 @@ class SavedTripApiTest extends IntegrationTestBase {
     }
 
     private String createCourse(String regionName, String spotIdsCsv) throws Exception {
+        return createCourse(DEVICE_A, regionName, spotIdsCsv);
+    }
+
+    private String createCourse(String deviceId, String regionName, String spotIdsCsv) throws Exception {
         String body = mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", deviceId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"regionName\": \"" + regionName + "\", \"spotIds\": [" + spotIdsCsv + "]}"))
                 .andExpect(status().isOk())

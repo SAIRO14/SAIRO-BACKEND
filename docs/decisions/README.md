@@ -20,7 +20,8 @@
 | [0008](./0008-greedy-nearest-neighbor-course-sort.md) | Greedy Nearest-Neighbor 코스 정렬 | 수용됨 | 2026-07-25 |
 | [0009](./0009-tourapi-curated-course-source.md) | 한국관광공사 TourAPI contentTypeId=25 데이터 소스 | 수용됨 | 2026-07-25 |
 | [0010](./0010-course-persistence.md) | 코스를 서버에 영속화 | 수용됨 | 2026-07-26 |
-| [0011](./0011-saved-trip-identity.md) | 저장 여행지의 중복 판정은 지역과 장소 구성으로 | 수용됨 | 2026-07-30 |
+| [0011](./0011-saved-trip-identity.md) | 저장 여행지의 중복 판정은 장소 구성으로 | 수용됨 | 2026-07-30 |
+| [0012](./0012-course-ownership.md) | 코스에 소유자를 둔다 | 수용됨 | 2026-07-30 |
 
 ## 언제 ADR을 쓰나
 
