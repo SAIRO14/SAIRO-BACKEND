@@ -159,7 +159,7 @@ NULL은 유니크 인덱스에서 여러 개가 허용된다.
 | `saved_trip_id` | TEXT PK | 저장 항목 ID (UUID) |
 | `device_id` | TEXT NOT NULL | 소유자. `X-Device-Id`로 받은 익명 사용자 식별자다. |
 | `course_id` | TEXT NOT NULL FK | 저장된 코스. 내용을 가져오는 참조다. |
-| `region_key` | TEXT NOT NULL | 중복 판정용 지역 키. `CourseSnapshot.regionName`을 그대로 넣는다. |
+| `region_key` | TEXT NOT NULL | 중복 판정용 지역 키. `CourseSnapshot.regionName`을 그대로 넣는다. 아래 참고. |
 | `course_fingerprint` | TEXT NOT NULL | 코스 지문. 장소 ID를 정렬해 이어 붙인 값의 SHA-256. |
 | `created_at` | TIMESTAMP NOT NULL | 저장 시각 |
 
@@ -174,8 +174,10 @@ NULL은 유니크 인덱스에서 여러 개가 허용된다.
 `UNIQUE(device_id, region_key, course_fingerprint)`가 정체성이다.
 ([ADR 0011](./decisions/0011-saved-trip-identity.md))
 
-- `region_key`는 요청 문자열이 아니라 서버가 `spots.region_name`에서 유도한 정규값이다.
+- `region_key`는 클라이언트가 보낸 문자열이 아니라 서버가 `spots.region_name`에서 유도한 값이다.
   `"주"` 같은 부분 일치용 값이 키에 들어오지 않는다.
+  **표기가 통일된 값은 아니다.** 광역 단위 정규화가 아직 없어 `"경북"`과 `"경상북도"`는 다른 키다.
+  ([ADR 0011](./decisions/0011-saved-trip-identity.md), [recommendation.md](./recommendation.md))
 - 지문에 **장소 순서를 넣지 않는다.** 순서는 사용자가 고른 것이 아니라 좌표 정렬이 정하는 값이라
   정렬 방식을 바꾸면 과거 저장분과 어긋난다.
 - 같은 장소로 코스를 다시 만들어 새 `course_id`로 저장해도 같은 항목이다.
