@@ -71,6 +71,38 @@ class OpenApiContractTest extends IntegrationTestBase {
                 .isEmpty();
     }
 
+    /**
+     * {@code X-Device-Id}를 받는 엔드포인트는 400 설명에 디바이스 오류 코드를 반드시 남긴다.
+     *
+     * <p>{@code SwaggerConfig}가 헤더 400을 붙이지만, 컨트롤러가 다른 이유로 400을 이미
+     * 선언한 엔드포인트에서는 그 설명을 그대로 두고 돌아가 {@code DEVICE_ID_*}가 명세에서
+     * 사라졌다. `POST /saved-trips`가 둘을 동시에 가진 첫 엔드포인트라 거기서 처음 드러났다.
+     * 명세가 정본(ADR 0002)이고 클라이언트가 코드로 분기하므로 둘 다 남아야 한다.
+     */
+    @Test
+    void deviceIdEndpoints_documentDeviceIdErrorCodes() throws Exception {
+        JsonNode paths = fetchApiDocs().path("paths");
+        List<String> violations = new ArrayList<>();
+
+        paths.propertyStream().forEach(pathEntry ->
+                pathEntry.getValue().propertyStream().forEach(methodEntry -> {
+                    JsonNode operation = methodEntry.getValue();
+                    boolean hasDeviceIdHeader = operation.path("parameters").valueStream()
+                            .anyMatch(p -> "X-Device-Id".equals(p.path("name").asString("")));
+                    if (!hasDeviceIdHeader) return;
+
+                    String description = operation.path("responses").path("400").path("description").asString("");
+                    if (!description.contains("DEVICE_ID_")) {
+                        violations.add("%s %s -> \"%s\"".formatted(
+                                methodEntry.getKey().toUpperCase(), pathEntry.getKey(), description));
+                    }
+                }));
+
+        assertThat(violations)
+                .as("X-Device-Id를 받는 엔드포인트의 400 설명에 DEVICE_ID_* 코드가 있어야 한다")
+                .isEmpty();
+    }
+
     // 오류 응답이 하나도 문서화되지 않으면 위 검증이 공허하게 통과한다.
     @Test
     void errorResponses_areDocumented() throws Exception {

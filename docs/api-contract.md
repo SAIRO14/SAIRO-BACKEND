@@ -127,7 +127,11 @@ Swagger의 각 엔드포인트에도 발생 가능한 코드가 적혀 있다.
 
 OpenAPI에는 `SwaggerConfig`가 헤더 파라미터와 `DEVICE_ID_*` 400 응답을 함께 붙인다.
 **컨트롤러의 `@ApiResponses`에 이 400을 다시 적지 않는다.** 다른 이유로 400을 이미
-선언했다면 그 설명을 유지한다.
+선언했다면 `SwaggerConfig`가 그 설명 뒤에 디바이스 오류 코드를 이어 붙인다.
+
+한 상태 코드에 원인이 둘 이상인 것은 정상이므로 **둘 다 명세에 남아야 한다.**
+예전에는 컨트롤러가 선언한 400이 있으면 그대로 두고 돌아가 `DEVICE_ID_*`가 사라졌다.
+`OpenApiContractTest.deviceIdEndpoints_documentDeviceIdErrorCodes`가 이 회귀를 막는다.
 
 ### 소유권
 
