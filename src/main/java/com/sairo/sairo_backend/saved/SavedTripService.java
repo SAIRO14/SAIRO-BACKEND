@@ -1,0 +1,51 @@
+package com.sairo.sairo_backend.saved;
+
+import com.sairo.sairo_backend.common.BusinessException;
+import com.sairo.sairo_backend.common.ErrorCode;
+import com.sairo.sairo_backend.course.CourseRepository;
+import com.sairo.sairo_backend.course.CourseSnapshot;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
+
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class SavedTripService {
+
+    private final SavedTripRepository savedTripRepository;
+    private final CourseRepository courseRepository;
+    private final ObjectMapper objectMapper;
+
+    /**
+     * 코스를 저장 여행지로 담는다.
+     *
+     * <p>저장할 내용은 서버가 저장해둔 코스에서만 가져온다. 요청은 {@code courseId}만 받는다.
+     *
+     * <p>중복 요청에 안전하다. 같은 사용자가 같은 지역의 같은 장소 구성을 다시 저장하면
+     * 새 항목을 만들지 않고 기존 항목을 그대로 돌려준다. 판정 키는 Q-04에서 정한
+     * {@code (device_id, 지역명, 코스 지문)}이다.
+     */
+    public SavedTripResponse save(String deviceId, SavedTripRequest request) {
+        String snapshotJson = courseRepository.findCourseDataById(request.courseId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.COURSE_NOT_FOUND));
+
+        CourseSnapshot snapshot;
+        try {
+            snapshot = objectMapper.readValue(snapshotJson, CourseSnapshot.class);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "코스 데이터 역직렬화 실패", e);
+        }
+
+        SavedTrip saved = savedTripRepository.save(
+                UUID.randomUUID().toString(),
+                deviceId,
+                request.courseId(),
+                snapshot.regionName(),
+                CourseFingerprint.of(snapshot)
+        );
+
+        return SavedTripResponse.from(saved);
+    }
+}
