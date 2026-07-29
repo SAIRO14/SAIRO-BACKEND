@@ -78,6 +78,22 @@ class CourseFingerprintTest {
         assertThat(CourseFingerprint.of(three)).isNotEqualTo(CourseFingerprint.of(four));
     }
 
+    /**
+     * 장소 ID 안에 구분자로 쓸 만한 문자가 들어 있어도 코스가 합쳐지지 않는다.
+     *
+     * <p>{@code spot_id}는 형식 제약이 없는 {@code TEXT}이고 값이 외부 API에서 온다.
+     * 단순히 {@code ","}로 이어 붙이면 아래 두 코스의 지문이 같아진다.
+     */
+    @Test
+    void of_withSeparatorInsideSpotId_producesDifferentFingerprint() {
+        CourseSnapshot left = new CourseSnapshot("제주도",
+                List.of(spot("a,b", "장소AB")), List.of(spot("c", "장소C")));
+        CourseSnapshot right = new CourseSnapshot("제주도",
+                List.of(spot("a", "장소A")), List.of(spot("b,c", "장소BC")));
+
+        assertThat(CourseFingerprint.of(right)).isNotEqualTo(CourseFingerprint.of(left));
+    }
+
     // 지역은 지문이 아니라 region_key 컬럼이 맡는다. 지문만 보면 지역이 달라도 같다.
     @Test
     void of_ignoresRegionName() {

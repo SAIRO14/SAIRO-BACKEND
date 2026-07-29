@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.Locale;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -149,6 +150,42 @@ class SavedTripApiTest extends IntegrationTestBase {
         mockMvc.perform(saveRequest(DEVICE_A, "  "))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    /**
+     * 대문자 UUID는 400이다. 404가 아니다.
+     *
+     * <p>{@code courses.course_id}는 TEXT라 조회가 대소문자를 구분한다. 대문자를 통과시키면
+     * 실재하는 코스에 {@code COURSE_NOT_FOUND}가 나가 "없는 코스"라고 잘못 답하게 된다.
+     */
+    @Test
+    void save_withUppercaseCourseId_returns400() throws Exception {
+        String courseId = createCourse("제주도", "\"spot-a\", \"spot-b\", \"spot-c\", \"spot-d\"");
+
+        mockMvc.perform(saveRequest(DEVICE_A, courseId.toUpperCase(Locale.ROOT)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    /**
+     * 저장된 코스 스냅샷을 읽지 못하면 500 INTERNAL_ERROR다.
+     *
+     * <p>컨트롤러가 이 500을 명세에 적었으므로 실제로 그 코드가 나오는지 고정한다.
+     * JSONB라 문법이 깨진 값은 넣을 수 없다. 문법은 맞지만 {@code CourseSnapshot}으로
+     * 매핑되지 않는 값을 넣는다.
+     */
+    @Test
+    void save_withUnreadableCourseSnapshot_returns500() throws Exception {
+        String courseId = UUID.randomUUID().toString();
+        jdbcTemplate.update(
+                "INSERT INTO courses (course_id, course_data) VALUES (?, ?::jsonb)",
+                courseId, """
+                        {"regionName":"제주도","day1":"배열이 아니다","day2":[]}
+                        """);
+
+        mockMvc.perform(saveRequest(DEVICE_A, courseId))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
     }
 
     // ─── helpers ────────────────────────────────────────────────────────────
