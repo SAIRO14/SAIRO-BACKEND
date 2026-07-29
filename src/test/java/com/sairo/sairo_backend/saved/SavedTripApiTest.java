@@ -8,6 +8,8 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -110,11 +112,25 @@ class SavedTripApiTest extends IntegrationTestBase {
         assertThat(savedTripCount(DEVICE_B)).isEqualTo(1);
     }
 
+    // 형식은 맞지만 대상이 없는 경우다. 형식 오류(아래)와 구분한다.
     @Test
     void save_withUnknownCourseId_returns404() throws Exception {
-        mockMvc.perform(saveRequest(DEVICE_A, "not-a-real-course"))
+        mockMvc.perform(saveRequest(DEVICE_A, UUID.randomUUID().toString()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+    }
+
+    /**
+     * 본문에 담긴 리소스 ID는 형식을 검증하고 400을 낸다.
+     *
+     * <p>형식을 보지 않고 404로 답하는 예외는 <b>경로</b>의 리소스 ID에만 적용된다.
+     * ({@code docs/api-contract.md} §2)
+     */
+    @Test
+    void save_withMalformedCourseId_returns400() throws Exception {
+        mockMvc.perform(saveRequest(DEVICE_A, "not-a-real-course"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
     @Test

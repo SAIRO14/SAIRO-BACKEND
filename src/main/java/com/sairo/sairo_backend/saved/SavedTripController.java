@@ -36,7 +36,7 @@ public class SavedTripController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "저장됨 (이미 저장된 코스면 기존 항목)"),
-            @ApiResponse(responseCode = "400", description = "INVALID_REQUEST — courseId 누락"),
+            @ApiResponse(responseCode = "400", description = "INVALID_REQUEST — courseId 누락 또는 UUID 형식 아님"),
             @ApiResponse(responseCode = "404", description = "COURSE_NOT_FOUND — 해당 코스가 없음")
     })
     @PostMapping
