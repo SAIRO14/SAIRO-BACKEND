@@ -13,14 +13,20 @@ photos          사진 풀과 임베딩. 추천의 입력.
 spots           관광 장소 마스터. 코스의 재료.
 courses         생성된 코스 스냅샷. 공유와 저장이 참조한다.
 shared_courses  공유 시점의 코스 스냅샷.
+saved_trips     사용자가 저장한 지역과 코스. 내용은 courses를 참조한다.
 ```
 
 **스냅샷은 참조가 아니라 복사본으로 보관한다.** `courses`와 `shared_courses`는 장소 목록을
 JSONB로 복사해 담고 `spots`를 참조하지 않는다. 공유된 코스는 원본 장소 정보가 나중에 바뀌어도
 공유 당시 모습을 그대로 재현해야 하기 때문이다.
 
-외래키는 `shared_courses.course_id` 하나뿐이며, 이것도 내용을 가져오기 위한 참조가 아니라
-**어느 코스에서 나온 공유인지 남기는 용도**다. ([ADR 0010](./decisions/0010-course-persistence.md))
+**저장 여행지는 예외로 복사하지 않는다.** `saved_trips`는 `course_id`로 내용을 가져온다.
+"저장 당시 모습 그대로"가 요구사항인 공유와 달리, 저장은 사용자가 다시 열어보는 목록이라
+같은 JSON을 두 벌 두는 비용이 이득보다 크다. ([ADR 0011](./decisions/0011-saved-trip-identity.md))
+
+외래키는 둘이다. `shared_courses.course_id`는 내용을 가져오기 위한 참조가 아니라
+**어느 코스에서 나온 공유인지 남기는 용도**이고 ([ADR 0010](./decisions/0010-course-persistence.md)),
+`saved_trips.course_id`는 **내용을 가져오는 참조**다.
 
 ## photos
 
@@ -144,9 +150,46 @@ NULL은 유니크 인덱스에서 여러 개가 허용된다.
 충돌하면 `SharedCourseRepository`가 새 ID로 다시 시도한다.
 만료 정책은 아직 없다. → [Q-02](./open-questions.md)
 
+## saved_trips
+
+사용자가 저장한 **추천 지역과 그 시점의 코스**다. 내용은 복사하지 않고 `courses`에서 가져온다.
+
+| 컬럼 | 타입 | 의미 |
+|---|---|---|
+| `saved_trip_id` | TEXT PK | 저장 항목 ID (UUID) |
+| `device_id` | TEXT NOT NULL | 소유자. `X-Device-Id`로 받은 익명 사용자 식별자다. |
+| `course_id` | TEXT NOT NULL FK | 저장된 코스. 내용을 가져오는 참조다. |
+| `region_key` | TEXT NOT NULL | 중복 판정용 지역 키. `CourseSnapshot.regionName`을 그대로 넣는다. |
+| `course_fingerprint` | TEXT NOT NULL | 코스 지문. 장소 ID를 정렬해 이어 붙인 값의 SHA-256. |
+| `created_at` | TIMESTAMP NOT NULL | 저장 시각 |
+
+### 소유자를 저장 행이 직접 들고 있는 이유
+
+`courses`에는 소유자가 없다. 코스는 누가 만들었는지와 무관한 스냅샷이고,
+"남의 데이터에 접근할 수 없어야 한다"는 소유자 조건을
+[쿼리에 포함](./api-contract.md#4-소유권과-멱등성)해야 하므로 저장 행이 `device_id`를 직접 갖는다.
+
+### 중복 판정
+
+`UNIQUE(device_id, region_key, course_fingerprint)`가 정체성이다.
+([ADR 0011](./decisions/0011-saved-trip-identity.md))
+
+- `region_key`는 요청 문자열이 아니라 서버가 `spots.region_name`에서 유도한 정규값이다.
+  `"주"` 같은 부분 일치용 값이 키에 들어오지 않는다.
+- 지문에 **장소 순서를 넣지 않는다.** 순서는 사용자가 고른 것이 아니라 좌표 정렬이 정하는 값이라
+  정렬 방식을 바꾸면 과거 저장분과 어긋난다.
+- 같은 장소로 코스를 다시 만들어 새 `course_id`로 저장해도 같은 항목이다.
+  이때 남는 `course_id`는 **처음 저장할 때의 값**이다.
+
+키가 같으면 내용도 같으므로 **`SAVED_TRIP_CONFLICT` 409는 이 설계에서 발생하지 않는다.**
+
+### 현재의 한계
+
+`courses`를 지우면 외래키가 막는다. 코스 정리 정책([Q-02](./open-questions.md))에서
+저장된 코스를 어떻게 다룰지 함께 정해야 한다.
+
 ## 저장되지 않는 데이터
 
 | 데이터 | 현재 위치 | 문제 |
 |---|---|---|
 | 분석 결과 (임베딩·태그) | `AnalysisStore`의 프로세스 메모리 | 재시작 시 소실, TTL 없음, 다중 인스턴스 불가 → [Q-06](./open-questions.md) |
-| 저장 여행지 | 미구현 | 중복 저장 판정 키가 아직 미정 → [Q-04](./open-questions.md) |
