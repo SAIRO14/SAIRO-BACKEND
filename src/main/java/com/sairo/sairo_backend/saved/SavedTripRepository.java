@@ -12,7 +12,7 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 @RequiredArgsConstructor
-public class SavedTripRepository {
+class SavedTripRepository {
 
     private static final RowMapper<SavedTrip> ROW_MAPPER = (rs, rowNum) -> new SavedTrip(
             rs.getString("saved_trip_id"),
@@ -33,17 +33,20 @@ public class SavedTripRepository {
      *
      * <p>{@code DO UPDATE}가 {@code device_id}를 자기 값으로 덮는 것은 갱신이 목적이 아니라
      * 행을 반환시키기 위한 것이다. 충돌한 행은 이미 같은 {@code device_id}를 갖고 있다.
+     *
+     * <p>충돌 시 {@code region_key}와 {@code course_id}는 <b>기존 값을 유지한다.</b>
+     * 저장 항목이 가리키는 것은 최초로 저장한 그 코스다.
      */
-    public SavedTrip save(String savedTripId,
-                          String deviceId,
-                          String courseId,
-                          String regionKey,
-                          String courseFingerprint) {
+    SavedTrip save(String savedTripId,
+                   String deviceId,
+                   String courseId,
+                   String regionKey,
+                   String courseFingerprint) {
         return jdbcTemplate.queryForObject(
                 """
                 INSERT INTO saved_trips (saved_trip_id, device_id, course_id, region_key, course_fingerprint)
                 VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT (device_id, region_key, course_fingerprint)
+                ON CONFLICT (device_id, course_fingerprint)
                     DO UPDATE SET device_id = EXCLUDED.device_id
                 RETURNING saved_trip_id, course_id, region_key, created_at
                 """,

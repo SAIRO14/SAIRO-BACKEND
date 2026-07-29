@@ -159,7 +159,7 @@ NULL은 유니크 인덱스에서 여러 개가 허용된다.
 | `saved_trip_id` | TEXT PK | 저장 항목 ID (UUID) |
 | `device_id` | TEXT NOT NULL | 소유자. `X-Device-Id`로 받은 익명 사용자 식별자다. |
 | `course_id` | TEXT NOT NULL FK | 저장된 코스. 내용을 가져오는 참조다. |
-| `region_key` | TEXT NOT NULL | 중복 판정용 지역 키. `CourseSnapshot.regionName`을 그대로 넣는다. 아래 참고. |
+| `region_key` | TEXT NOT NULL | 저장 당시의 지역명. `CourseSnapshot.regionName`을 그대로 넣는다. 표시와 필터에 쓰고 **중복 판정에는 쓰지 않는다.** 아래 참고. |
 | `course_fingerprint` | TEXT NOT NULL | 코스 지문. 장소 ID를 정렬해 이어 붙인 값의 SHA-256. |
 | `created_at` | TIMESTAMP NOT NULL | 저장 시각 |
 
@@ -171,22 +171,28 @@ NULL은 유니크 인덱스에서 여러 개가 허용된다.
 
 ### 중복 판정
 
-`UNIQUE(device_id, region_key, course_fingerprint)`가 정체성이다.
+`UNIQUE(device_id, course_fingerprint)`가 정체성이다.
 ([ADR 0011](./decisions/0011-saved-trip-identity.md))
 
-- `region_key`는 클라이언트가 보낸 문자열이 아니라 서버가 `spots.region_name`에서 유도한 값이다.
-  `"주"` 같은 부분 일치용 값이 키에 들어오지 않는다.
-  **표기가 통일된 값은 아니다.** 광역 단위 정규화가 아직 없어 `"경북"`과 `"경상북도"`는 다른 키다.
-  ([ADR 0011](./decisions/0011-saved-trip-identity.md), [recommendation.md](./recommendation.md))
+- **`region_key`는 판정에 들어가지 않는다.** 한 코스의 장소는 모두 같은 `region_name`이어야 하므로
+  장소 집합이 정해지면 지역명도 함께 정해진다. 지문이 이미 지역명을 결정하므로 이 축은 코스를
+  갈라주지 못하고, `spots.region_name`을 수정하면 같은 코스를 중복으로 쌓는 일만 한다.
 - 지문에 **장소 순서를 넣지 않는다.** 순서는 사용자가 고른 것이 아니라 좌표 정렬이 정하는 값이라
   정렬 방식을 바꾸면 과거 저장분과 어긋난다.
 - 같은 장소로 코스를 다시 만들어 새 `course_id`로 저장해도 같은 항목이다.
-  이때 남는 `course_id`는 **처음 저장할 때의 값**이다.
+  이때 남는 `course_id`와 `region_key`는 **처음 저장할 때의 값**이다.
 
 `course_fingerprint`는 **스냅샷 전체의 해시가 아니다.** 장소 ID만 넣으므로 Day 배치나
 장소의 이름·좌표·이미지가 달라도 같은 지문이다. 그 차이를 중복 판정에서 무시하고
 최초 저장 스냅샷을 유지하겠다는 것이 결정의 내용이다.
 따라서 충돌로 볼 상황이 정의되지 않아 **`SAVED_TRIP_CONFLICT` 409는 이 설계에서 발생하지 않는다.**
+
+### 외래키 정책이 shared_courses와 다른 이유
+
+| | `shared_courses.course_id` | `saved_trips.course_id` |
+|---|---|---|
+| 정책 | `ON DELETE SET NULL` | 없음 (= `RESTRICT`) |
+| 이유 | 스냅샷을 복사해 두므로 코스가 사라져도 공유 링크가 계속 열려야 한다 | 스냅샷을 복사하지 않으므로 코스가 사라지면 저장 항목이 내용을 잃는다 |
 
 ### 현재의 한계
 

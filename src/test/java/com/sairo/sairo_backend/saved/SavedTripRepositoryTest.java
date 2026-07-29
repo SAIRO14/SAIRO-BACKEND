@@ -11,12 +11,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 유니크 키의 각 컬럼이 실제로 정체성에 참여하는지 확인한다.
+ * 정체성이 {@code (device_id, course_fingerprint)}라는 것을 리포지토리 층에서 고정한다.
  *
- * <p>{@code region_key}는 API를 거쳐서는 검증할 수 없다. 지역은 장소에서 유도되므로
- * 같은 장소 구성에 다른 지역을 만들 수 없고, 지역이 다르면 지문도 함께 갈린다.
- * 즉 API 테스트만으로는 유니크 인덱스에서 {@code region_key}를 빼도 전부 통과한다.
- * 리포지토리를 직접 불러 그 한 축만 다르게 만든다.
+ * <p>{@code region_key}가 판정에 끼지 않는다는 것은 API를 거쳐서는 확인할 수 없다.
+ * 지역명이 장소에서 유도되므로 같은 장소 구성에 다른 지역을 만들 수 없기 때문이다.
+ * 리포지토리를 직접 불러 그 상태를 만든다.
  */
 class SavedTripRepositoryTest extends IntegrationTestBase {
 
@@ -45,17 +44,34 @@ class SavedTripRepositoryTest extends IntegrationTestBase {
                         """);
     }
 
-    // 지역이 다르면 장소 구성이 같아도 별도 저장이다.
+    /**
+     * 지역명이 달라져도 장소 구성이 같으면 같은 저장 항목이다.
+     *
+     * <p>{@code spots.region_name}을 고친 뒤 같은 장소로 코스를 다시 만든 상황이다.
+     * 지역명을 정체성에 넣으면 이때 같은 코스가 중복으로 쌓인다.
+     * 남는 {@code region_key}는 <b>최초 저장 시점의 값</b>이다.
+     */
     @Test
-    void save_withSameFingerprintButDifferentRegion_createsSeparateRows() {
-        SavedTrip jeju = save("제주도", FINGERPRINT);
-        SavedTrip gangwon = save("강원", FINGERPRINT);
+    void save_withSameFingerprintButDifferentRegion_returnsExistingRow() {
+        SavedTrip first = save("경북", FINGERPRINT);
+        SavedTrip renamed = save("경상북도", FINGERPRINT);
 
-        assertThat(gangwon.savedTripId()).isNotEqualTo(jeju.savedTripId());
+        assertThat(renamed.savedTripId()).isEqualTo(first.savedTripId());
+        assertThat(renamed.regionKey()).isEqualTo("경북");
+        assertThat(rowCount()).isEqualTo(1);
+    }
+
+    // 장소 구성이 다르면 별도 저장이다.
+    @Test
+    void save_withDifferentFingerprint_createsSeparateRows() {
+        SavedTrip first = save("제주도", FINGERPRINT);
+        SavedTrip other = save("제주도", "other-fingerprint");
+
+        assertThat(other.savedTripId()).isNotEqualTo(first.savedTripId());
         assertThat(rowCount()).isEqualTo(2);
     }
 
-    // 세 축이 모두 같으면 기존 행을 돌려준다.
+    // 두 축이 모두 같으면 기존 행을 돌려준다. created_at도 바뀌지 않는다.
     @Test
     void save_withIdenticalKey_returnsExistingRow() {
         SavedTrip first = save("제주도", FINGERPRINT);
