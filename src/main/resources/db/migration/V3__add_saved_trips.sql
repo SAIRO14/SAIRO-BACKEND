@@ -28,3 +28,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS saved_trips_identity_idx
 -- 순서가 흔들리므로 saved_trip_id를 tie-breaker로 함께 넣는다.
 CREATE INDEX IF NOT EXISTS saved_trips_device_created_idx
     ON saved_trips (device_id, created_at DESC, saved_trip_id DESC);
+
+-- PostgreSQL은 외래키를 거는 쪽에 인덱스를 자동으로 만들지 않는다.
+-- 이게 없으면 courses에서 한 행을 지울 때마다 saved_trips 전체를 순차 스캔해 참조를 확인한다.
+-- 지금은 코스 삭제 경로가 없지만 정리 정책(Q-02)이 들어오면 배치 삭제가 여기서 느려진다.
+CREATE INDEX IF NOT EXISTS saved_trips_course_id_idx
+    ON saved_trips (course_id);
