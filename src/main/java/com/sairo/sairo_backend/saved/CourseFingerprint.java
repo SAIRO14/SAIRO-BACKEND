@@ -31,10 +31,19 @@ final class CourseFingerprint {
     private CourseFingerprint() {
     }
 
+    /**
+     * 장소 ID를 정렬해 이어 붙인 값의 SHA-256을 만든다.
+     *
+     * <p>구분자로 나누지 않고 <b>각 ID 앞에 길이를 붙인다.</b> {@code spots.spot_id}는 형식 제약이 없는
+     * {@code TEXT}이고 값이 외부 TourAPI에서 들어오므로, 어떤 문자가 ID 안에 나타나지 않는다고
+     * 단정할 수 없다. 구분자가 ID에 섞이면 {@code ["a,b", "c"]}와 {@code ["a", "b,c"]}가 같은 지문이 되어
+     * <b>서로 다른 코스가 하나로 합쳐진다.</b> 지문은 정체성 키라 한 번 어긋나면 저장 데이터로 굳는다.
+     */
     static String of(CourseSnapshot snapshot) {
         String joined = Stream.concat(spotIds(snapshot.day1()), spotIds(snapshot.day2()))
                 .sorted()
-                .collect(Collectors.joining(","));
+                .map(id -> id.length() + ":" + id)
+                .collect(Collectors.joining());
         return sha256(joined);
     }
 
