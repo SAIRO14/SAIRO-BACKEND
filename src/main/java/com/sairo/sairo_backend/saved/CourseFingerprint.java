@@ -12,7 +12,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * 코스의 내용을 하나의 문자열로 요약한다. 중복 저장 판정에 쓴다. (Q-04)
+ * 코스가 어떤 장소들로 이루어졌는지를 하나의 문자열로 요약한다. 중복 저장 판정에 쓴다. (ADR 0011)
+ *
+ * <p><b>스냅샷 전체의 해시가 아니다.</b> 장소 ID만 넣으므로 Day 1·Day 2 배치나
+ * 장소의 이름·좌표·이미지가 달라도 지문은 같다. 그 차이를 중복 판정에서 무시하겠다는 것이
+ * 결정의 내용이다.
  *
  * <p>{@code courseId}로는 중복을 판정할 수 없다. 같은 장소로 {@code POST /courses}를
  * 다시 부르면 매번 새 {@code courseId}가 나오기 때문이다.

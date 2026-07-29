@@ -1,7 +1,7 @@
 -- 저장 여행지. 사용자가 저장한 추천 지역과 그 시점의 코스를 가리킨다.
 --
 -- 코스 내용은 courses.course_data에 이미 있으므로 여기서 다시 복사하지 않는다.
--- 스냅샷을 복사하면 같은 JSON이 두 벌 존재하고 한쪽만 고쳐질 여지가 생긴다. (Q-04)
+-- 스냅샷을 복사하면 같은 JSON이 두 벌 존재하고 한쪽만 고쳐질 여지가 생긴다. (ADR 0011)
 
 CREATE TABLE IF NOT EXISTS saved_trips (
     saved_trip_id      TEXT PRIMARY KEY,
@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS saved_trips (
     device_id          TEXT NOT NULL,
     course_id          TEXT NOT NULL REFERENCES courses (course_id),
     -- 중복 판정용 지역 키. CourseSnapshot.regionName, 즉 서버가 spots.region_name에서
-    -- 유도한 정규값이다. 요청 문자열("주" 같은 부분 일치값)이 들어오지 않는다.
+    -- 유도한 값이다. 요청 문자열("주" 같은 부분 일치값)이 직접 들어오지 않는다.
+    -- 표기가 통일된 값은 아니다 — "경북"과 "경상북도"는 여전히 다른 키다. (ADR 0011)
     region_key         TEXT NOT NULL,
     -- 코스 지문. 장소 ID를 정렬해 이어 붙인 값의 SHA-256이다.
     -- 순서를 넣지 않는 이유는 CourseFingerprint의 주석에 있다.

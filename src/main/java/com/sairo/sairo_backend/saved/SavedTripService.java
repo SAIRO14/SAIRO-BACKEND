@@ -24,8 +24,11 @@ public class SavedTripService {
      * <p>저장할 내용은 서버가 저장해둔 코스에서만 가져온다. 요청은 {@code courseId}만 받는다.
      *
      * <p>중복 요청에 안전하다. 같은 사용자가 같은 지역의 같은 장소 구성을 다시 저장하면
-     * 새 항목을 만들지 않고 기존 항목을 그대로 돌려준다. 판정 키는 Q-04에서 정한
-     * {@code (device_id, 지역명, 코스 지문)}이다.
+     * 새 항목을 만들지 않고 기존 항목을 그대로 돌려준다.
+     * 판정 키는 {@code (device_id, 지역명, 코스 지문)}이다. (ADR 0011)
+     *
+     * <p>키가 같아도 스냅샷이 완전히 같다는 뜻은 아니다. 장소 마스터가 바뀐 뒤 만든 코스는
+     * 이름·좌표가 달라도 같은 항목으로 본다. 이때 남는 것은 <b>최초 저장 시점의 코스</b>다.
      */
     public SavedTripResponse save(String deviceId, SavedTripRequest request) {
         String snapshotJson = courseRepository.findCourseDataById(request.courseId())
