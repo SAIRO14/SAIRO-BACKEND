@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface SpotRepository extends JpaRepository<Spot, String> {
 
-    @Query(value = "SELECT * FROM spots WHERE region_name ILIKE '%' || :region || '%' LIMIT :limit",
+    @Query(value = "SELECT * FROM spots WHERE region_name ILIKE '%' || :region || '%' ORDER BY spot_id LIMIT :limit",
             nativeQuery = true)
     List<Spot> findByRegionContaining(@Param("region") String region, @Param("limit") int limit);
 }
