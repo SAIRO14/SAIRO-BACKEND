@@ -4,12 +4,19 @@ import java.util.List;
 
 public record RecommendationResponse(
         List<String> moodTags,
-        List<SpotResult> spots
+        List<RegionCard> regions
 ) {
-    public record SpotResult(
-            String spotId,
-            String name,
+    public record RegionCard(
+            String regionId,
             String regionName,
-            String imageUrl
+            String imageUrl,
+            String reason,
+            boolean saved,
+            List<PreviewSpot> previewSpots
+    ) {}
+
+    public record PreviewSpot(
+            String spotId,
+            String name
     ) {}
 }
