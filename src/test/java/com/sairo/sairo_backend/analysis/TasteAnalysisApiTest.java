@@ -21,6 +21,7 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
 
     @BeforeEach
     void insertTestData() {
+        jdbcTemplate.update("DELETE FROM spots");
         jdbcTemplate.update("DELETE FROM photos");
         insertPhoto("photo-1", "테스트1", "http://img1.jpg", "제주", "자연,힐링");
         insertPhoto("photo-2", "테스트2", "http://img2.jpg", "제주", "바다,여유");
@@ -132,21 +133,54 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
 
     @Test
     void recommendations_withValidAnalysisId_returns200() throws Exception {
-        MvcResult result = mockMvc.perform(post("/taste-analysis")
+        String analysisId = extractAnalysisId(
+                mockMvc.perform(post("/taste-analysis")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"photoIds": ["photo-1", "photo-2", "photo-3", "photo-4", "photo-5"]}
                                 """))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        String body = result.getResponse().getContentAsString();
-        String analysisId = body.split("\"analysisId\":\"")[1].split("\"")[0];
+                        .andExpect(status().isOk())
+                        .andReturn()
+        );
 
         mockMvc.perform(get("/recommendations").param("analysisId", analysisId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.moodTags").isArray())
-                .andExpect(jsonPath("$.spots").isArray());
+                .andExpect(jsonPath("$.regions").isArray());
+    }
+
+    // 5개 지역 모두 장소를 넣어 top 3 선정이 비결정적이어도 카드가 만들어지도록 한다.
+    @Test
+    void recommendations_withSpotsInDb_returnsRegionCardStructure() throws Exception {
+        insertSpot("spot-jeju-1", "한라산", "제주", "http://jeju1.jpg");
+        insertSpot("spot-jeju-2", "성산일출봉", "제주", "http://jeju2.jpg");
+        insertSpot("spot-gangwon-1", "설악산", "강원", "http://gw1.jpg");
+        insertSpot("spot-gangwon-2", "남이섬", "강원", "http://gw2.jpg");
+        insertSpot("spot-gyeongju-1", "불국사", "경주", "http://gj1.jpg");
+        insertSpot("spot-gyeongju-2", "첨성대", "경주", "http://gj2.jpg");
+        insertSpot("spot-jeonbuk-1", "전주한옥마을", "전북", "http://jb1.jpg");
+        insertSpot("spot-jeonbuk-2", "마이산", "전북", "http://jb2.jpg");
+        insertSpot("spot-chungnam-1", "서해안", "충남", "http://cn1.jpg");
+        insertSpot("spot-chungnam-2", "태안", "충남", "http://cn2.jpg");
+
+        String analysisId = extractAnalysisId(
+                mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["photo-1", "photo-2", "photo-3", "photo-4", "photo-5"]}
+                                """))
+                        .andExpect(status().isOk())
+                        .andReturn()
+        );
+
+        mockMvc.perform(get("/recommendations").param("analysisId", analysisId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.regions[0].regionId").isNotEmpty())
+                .andExpect(jsonPath("$.regions[0].regionName").isNotEmpty())
+                .andExpect(jsonPath("$.regions[0].reason").isNotEmpty())
+                .andExpect(jsonPath("$.regions[0].saved").value(false))
+                .andExpect(jsonPath("$.regions[0].previewSpots[0].spotId").isNotEmpty())
+                .andExpect(jsonPath("$.regions[0].previewSpots[0].name").isNotEmpty());
     }
 
     // 없거나 만료된 analysisId는 리소스 부재이므로 404다. (docs/api-contract.md 상태 코드)
@@ -156,6 +190,18 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ANALYSIS_NOT_FOUND"))
                 .andExpect(jsonPath("$.retryable").value(false));
+    }
+
+    private String extractAnalysisId(MvcResult result) throws Exception {
+        String body = result.getResponse().getContentAsString();
+        return body.split("\"analysisId\":\"")[1].split("\"")[0];
+    }
+
+    private void insertSpot(String spotId, String name, String regionName, String imageUrl) {
+        jdbcTemplate.update(
+                "INSERT INTO spots (spot_id, name, region_name, image_url) VALUES (?, ?, ?, ?)",
+                spotId, name, regionName, imageUrl
+        );
     }
 
     private void insertPhoto(String id, String title, String imageUrl, String location, String keywords) {
