@@ -27,7 +27,7 @@
 | 존재하지 않는 경로 | 404 | `ENDPOINT_NOT_FOUND` |
 | 허용되지 않은 메서드 | 405 | `METHOD_NOT_ALLOWED` |
 | 지원하지 않는 Content-Type | 415 | `UNSUPPORTED_MEDIA_TYPE` |
-| 충돌 (중복 저장 등) | 409 | `SAVED_TRIP_CONFLICT` 등 |
+| 충돌 | 409 | `SAVED_TRIP_CONFLICT` 등 (현재 쓰이는 곳 없음, §4 참고) |
 | 서버 오류 | 500 | `INTERNAL_ERROR` 등 |
 
 **프로토콜 수준 오류는 표준 HTTP 의미를 유지한다.** 405와 415를 400으로 뭉뚱그리지 않는다.
@@ -87,7 +87,7 @@ Swagger의 각 엔드포인트에도 발생 가능한 코드가 적혀 있다.
 | 저장 여행지 | `SAVED_TRIP_NOT_FOUND` `SAVED_TRIP_CONFLICT` `SAVED_TRIP_FORBIDDEN` |
 | 외부 연동 | `EXTERNAL_API_FAILED` |
 
-디바이스 식별과 저장 여행지 코드는 해당 기능 구현 전에 미리 정의해둔 것이다.
+`SAVED_TRIP_CONFLICT`는 정의만 되어 있고 아직 어느 엔드포인트도 던지지 않는다. 이유는 §4 멱등성에 있다.
 
 ### 코드를 새로 만드는 기준
 
@@ -127,7 +127,11 @@ Swagger의 각 엔드포인트에도 발생 가능한 코드가 적혀 있다.
 
 OpenAPI에는 `SwaggerConfig`가 헤더 파라미터와 `DEVICE_ID_*` 400 응답을 함께 붙인다.
 **컨트롤러의 `@ApiResponses`에 이 400을 다시 적지 않는다.** 다른 이유로 400을 이미
-선언했다면 그 설명을 유지한다.
+선언했다면 `SwaggerConfig`가 그 설명 뒤에 디바이스 오류 코드를 이어 붙인다.
+
+한 상태 코드에 원인이 둘 이상인 것은 정상이므로 **둘 다 명세에 남아야 한다.**
+예전에는 컨트롤러가 선언한 400이 있으면 그대로 두고 돌아가 `DEVICE_ID_*`가 사라졌다.
+`OpenApiContractTest.deviceIdEndpoints_documentDeviceIdErrorCodes`가 이 회귀를 막는다.
 
 ### 소유권
 
@@ -145,7 +149,11 @@ OpenAPI에는 `SwaggerConfig`가 헤더 파라미터와 `DEVICE_ID_*` 400 응답
 사용자의 연속 탭으로 같은 요청이 두 번 도착할 수 있다.
 
 - **저장 생성** — 이미 같은 내용이 저장돼 있으면 새로 만들지 않고 기존 항목을 반환한다.
-  서로 다른 내용이 같은 키로 충돌하는 경우에만 409를 쓴다.
+  같은 내용의 판정 키는 `(익명 사용자 ID, 코스 지문)`이다
+  ([ADR 0011](./decisions/0011-saved-trip-identity.md)).
+  이 키가 같으면 스냅샷의 순서·표시 정보 차이는 중복 판정에서 무시하고 최초 저장 스냅샷을 유지한다.
+  충돌로 볼 상황이 정의되지 않으므로 **`SAVED_TRIP_CONFLICT` 409는 현재 발생하지 않는다.**
+  코드는 정의만 남아 있고 저장 생성 엔드포인트에 문서화하지 않는다.
 - **저장 해제** — 이미 없는 항목을 지워도 성공으로 응답한다.
 - **공유 생성** — 한 코스의 공유 링크는 하나다. 이미 공유된 코스면 새로 만들지 않고
   기존 `shareId`를 반환한다. `share_id`가 충돌하면 재생성한다.

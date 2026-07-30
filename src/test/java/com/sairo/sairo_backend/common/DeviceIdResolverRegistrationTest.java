@@ -81,18 +81,38 @@ class DeviceIdResolverRegistrationTest extends IntegrationTestBase {
                 .doesNotContain("DEVICE_ID_REQUIRED");
     }
 
-    // 컨트롤러가 적은 설명이 더 구체적이다. 덮어쓰면 도메인 오류 코드가 사라진다.
+    /**
+     * 컨트롤러가 적은 설명을 덮지 않되, 디바이스 오류 코드를 이어 붙인다.
+     *
+     * <p>덮어쓰면 도메인 오류 코드가 사라지고, 그대로 두고 돌아가면 {@code DEVICE_ID_*}가 사라진다.
+     * 한 상태 코드에 원인이 둘 이상인 것은 정상이므로 둘 다 남아야 한다.
+     */
     @Test
-    void deviceIdHeaderCustomizer_keepsExistingErrorDescription() throws Exception {
+    void deviceIdHeaderCustomizer_appendsToExistingErrorDescription() throws Exception {
         Operation operation = new Operation().responses(new ApiResponses()
-                .addApiResponse("400", new ApiResponse().description("SAVED_TRIP_CONFLICT — 이미 저장함")));
+                .addApiResponse("400", new ApiResponse().description("INVALID_REQUEST — courseId 누락")));
 
         HandlerMethod handlerMethod = new HandlerMethod(
                 new StubController(), StubController.class.getDeclaredMethod("required", String.class));
         deviceIdHeaderCustomizer.customize(operation, handlerMethod);
 
         assertThat(operation.getResponses().get("400").getDescription())
-                .isEqualTo("SAVED_TRIP_CONFLICT — 이미 저장함");
+                .contains("INVALID_REQUEST — courseId 누락")
+                .contains("DEVICE_ID_REQUIRED", "DEVICE_ID_INVALID");
+    }
+
+    // 컨트롤러가 디바이스 오류를 직접 적었다면 그 설명이 더 구체적이다. 두 번 적지 않는다.
+    @Test
+    void deviceIdHeaderCustomizer_doesNotDuplicateDeviceIdCodes() throws Exception {
+        String written = "DEVICE_ID_REQUIRED — 이 API는 헤더가 반드시 필요하다";
+        Operation operation = new Operation().responses(new ApiResponses()
+                .addApiResponse("400", new ApiResponse().description(written)));
+
+        HandlerMethod handlerMethod = new HandlerMethod(
+                new StubController(), StubController.class.getDeclaredMethod("required", String.class));
+        deviceIdHeaderCustomizer.customize(operation, handlerMethod);
+
+        assertThat(operation.getResponses().get("400").getDescription()).isEqualTo(written);
     }
 
     // Optional 파라미터는 선택 헤더로 문서화돼야 한다. (추천 조회·장소 상세)

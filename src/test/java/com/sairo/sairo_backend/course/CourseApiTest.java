@@ -184,6 +184,26 @@ class CourseApiTest extends IntegrationTestBase {
     }
 
     /**
+     * 공유 스냅샷을 읽지 못하면 500 INTERNAL_ERROR다.
+     *
+     * <p>컨트롤러가 이 500을 명세에 적었으므로 실제로 그 코드가 나오는지 고정한다.
+     * JSONB라 문법이 깨진 값은 넣을 수 없어, 문법은 맞지만 {@code CourseSnapshot}으로
+     * 매핑되지 않는 값을 넣는다.
+     */
+    @Test
+    void getSharedCourse_withUnreadableSnapshot_returns500() throws Exception {
+        jdbcTemplate.update(
+                "INSERT INTO shared_courses (share_id, course_data) VALUES (?, ?::jsonb)",
+                "broken0001", """
+                        {"regionName":"제주도","day1":"배열이 아니다","day2":[]}
+                        """);
+
+        mockMvc.perform(get("/courses/shared/broken0001"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
+    }
+
+    /**
      * 코스 영속화 이전에 만들어진 공유 링크도 계속 열려야 한다.
      *
      * <p>옛 스냅샷은 {@code day1}·{@code day2}만 담고 있어 지역을 복원할 수 없다.

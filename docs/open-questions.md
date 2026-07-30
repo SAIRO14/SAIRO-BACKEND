@@ -33,35 +33,16 @@
 
 - 만료 기간 (무기한 / N일)
 - 만료분 정리 방식. `courses`도 함께 늘어나므로 같이 정한다.
+- **저장된 코스를 어떻게 다룰지.** `saved_trips.course_id`가 `courses`를 참조하며
+  `ON DELETE` 절이 없어 삭제가 막힌다.
+- **저장 생성의 FK 레이스.** `SavedTripService.save`는 코스 조회와 삽입이 별개 auto-commit이라,
+  그 사이에 코스가 지워지면 FK 위반이 500 `INTERNAL_ERROR`로 나간다. 원인은 "없는 코스"이므로
+  404 `COURSE_NOT_FOUND`가 맞다. 삭제 경로가 생기는 시점에 매핑을 추가해야 한다.
 
 `share_id` 충돌 시 재생성은 구현했다. (`SharedCourseRepository.save`)
 
 만료와 부재를 응답에서 구분하지 않는 것은 이미 정해졌다.
 ([api-contract.md §2](./api-contract.md#2-상태-코드))
-
----
-
-## Q-04. 중복 저장 판정 기준
-
-**상태:** 논의 중
-**영향:** 저장 테이블의 유니크 제약, 멱등 처리
-
-"같은 추천 결과는 중복 저장 불가, 같은 지역이라도 코스가 다르면 별도 저장"을
-어떤 키로 판정할지 정해지지 않았다.
-
-코스가 `courses` 테이블에 저장되므로 `course_id`로 참조할 수 있다
-([ADR 0010](./decisions/0010-course-persistence.md)). 다만 같은 장소·같은 순서라도
-`POST /courses`를 다시 부르면 새 `course_id`가 나오므로, `course_id`만으로는
-"같은 코스"를 판정할 수 없다.
-
-후보: `UNIQUE(익명 사용자 ID, 지역 키, 코스 지문)`
-코스 지문은 Day 1·Day 2 장소 ID를 순서대로 이어 해시한 값.
-
-정해야 하는 것:
-
-- 지역 키를 무엇으로 삼을지 (지역명 문자열 / 정규화된 코드)
-- 코스 순서가 바뀌면 다른 코스로 볼지
-- 저장 행이 `course_id`를 함께 들고 있을지 (스냅샷만 복사할지)
 
 ---
 
@@ -144,4 +125,5 @@
 | 코딩 규약 문서 | AGENTS.md 정본, CLAUDE.md 참조 | [ADR 0004](./decisions/0004-agents-md-as-convention-source.md) |
 | 익명 사용자 ID 전달 방식 | `X-Device-Id` 헤더, UUID v4 | [ADR 0007](./decisions/0007-anonymous-device-id.md), [api-contract.md §4](./api-contract.md#4-소유권과-멱등성) |
 | 코스를 서버에 저장할 것인가 | `courses` 테이블에 저장하고 공유·저장이 참조 | [ADR 0010](./decisions/0010-course-persistence.md), [data-model.md](./data-model.md) |
+| 중복 저장 판정 기준 | `UNIQUE(익명 사용자 ID, 코스 지문)`. 지문은 장소 ID를 정렬해 해시하며 순서를 넣지 않는다 | [ADR 0011](./decisions/0011-saved-trip-identity.md), [data-model.md](./data-model.md) |
 | 일부 사진 ID가 유효하지 않을 때 | 중복 제거 후 고유 장수 5 미만 → 400 / 유효 장수 5 미만 → 400, 그 외는 유효한 것으로 진행 | `TasteAnalysisService.analyze` |

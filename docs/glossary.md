@@ -22,7 +22,8 @@
 | **장소** | 코스에 들어가는 개별 관광지 | `spots` 테이블, `Spot`, `spotId` |
 | **코스** | 지역 안의 장소를 Day 1·Day 2로 나눈 1박 2일 일정 | `courses` 테이블, `CourseResponse`, `day1`, `day2` |
 | **코스 스냅샷** | 지역과 Day 1·Day 2를 함께 담아 저장하는 형태 | `CourseSnapshot`, `course_data` |
-| **저장 여행지** | 사용자가 저장한 추천 지역과 당시 코스의 스냅샷 | 미구현 → [Q-04](./open-questions.md) |
+| **저장 여행지** | 사용자가 저장한 추천 지역과 그 시점의 코스 | `saved_trips` 테이블, `SavedTrip`, `savedTripId` |
+| **코스 지문** | 코스의 내용을 요약해 중복 저장을 판정하는 값 | `CourseFingerprint`, `course_fingerprint` |
 | **공유 코스** | 공유 시점의 지역과 코스를 담은 읽기 전용 스냅샷 | `shared_courses`, `shareId` |
 | **익명 사용자 ID** | 로그인 없이 사용자를 구분하는 기기 생성 UUID v4 | `X-Device-Id` 헤더, `@DeviceId` 파라미터, `DEVICE_ID_*` 오류 코드 |
 
@@ -53,10 +54,12 @@
 | `analysisId` | 임시 | 프로세스 메모리 (TTL 없음) |
 | `courseId` | 영구 | `courses` |
 | `shareId` | 영구 | `shared_courses` |
+| `savedTripId` | 영구 | `saved_trips` |
 
 `courseId`는 공유와 저장이 코스를 가리키는 참조 키다.
 다만 같은 장소로 `POST /courses`를 다시 부르면 새 `courseId`가 나온다.
-**"내용이 같은 코스"를 판정하는 키는 아니다.** → [Q-04](./open-questions.md)
+**"내용이 같은 코스"를 판정하는 키는 아니다.** 그 판정은 코스 지문이 한다.
+([ADR 0011](./decisions/0011-saved-trip-identity.md))
 
 ### 결측(missing) vs 오류(error)
 

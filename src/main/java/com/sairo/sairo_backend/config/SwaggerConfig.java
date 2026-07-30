@@ -158,17 +158,34 @@ public class SwaggerConfig {
      * 헤더 검증 실패 400을 응답 목록에 넣는다. 본문 스키마는
      * {@link #errorResponseSchemaCustomizer()}가 뒤이어 {@link ErrorResponse}로 맞춘다.
      *
-     * <p>컨트롤러가 이미 400을 선언했다면 그쪽 설명이 더 구체적이므로 덮지 않는다.
+     * <p><b>컨트롤러가 다른 이유로 400을 이미 선언했다면 덮지 않고 이어 붙인다.</b>
+     * 예전에는 그대로 두고 돌아갔는데, 그러면 그 엔드포인트에서 실제로 발생하는
+     * {@code DEVICE_ID_*}가 명세에서 사라진다. 한 상태 코드에 원인이 둘 이상인 것은
+     * 정상이므로 둘 다 적어야 클라이언트가 코드로 분기할 수 있다.
+     *
+     * <p>컨트롤러가 {@code DEVICE_ID_}를 직접 적었다면 그 설명이 더 구체적이라고 보고 두 번 적지 않는다.
      */
     private void documentDeviceIdError(Operation operation, boolean required) {
         if (operation.getResponses() == null) {
             operation.setResponses(new ApiResponses());
         }
-        if (operation.getResponses().get("400") != null) {
+        String deviceIdError = required ? DEVICE_ID_ERROR_REQUIRED : DEVICE_ID_ERROR_OPTIONAL;
+
+        ApiResponse existing = operation.getResponses().get("400");
+        if (existing == null) {
+            operation.getResponses().addApiResponse("400", new ApiResponse().description(deviceIdError));
             return;
         }
-        operation.getResponses().addApiResponse("400", new ApiResponse().description(
-                required ? DEVICE_ID_ERROR_REQUIRED : DEVICE_ID_ERROR_OPTIONAL));
+
+        String description = existing.getDescription();
+        if (description == null || description.isBlank()) {
+            existing.setDescription(deviceIdError);
+            return;
+        }
+        if (description.contains("DEVICE_ID_")) {
+            return;
+        }
+        existing.setDescription(description + " / " + deviceIdError);
     }
 
     private void registerErrorSchema(OpenAPI openApi) {
