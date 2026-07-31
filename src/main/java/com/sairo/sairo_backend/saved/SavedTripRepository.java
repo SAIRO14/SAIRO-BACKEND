@@ -104,4 +104,21 @@ class SavedTripRepository {
                 deviceId, Timestamp.valueOf(cursor.createdAt()), cursor.savedTripId(), limit
         );
     }
+
+    /**
+     * 저장 항목 하나를 지운다. (#32)
+     *
+     * <p><b>소유자 조건은 쿼리에 있다.</b> 읽어서 소유자를 확인한 뒤 지우는 방식은 쓰지 않는다.
+     * 확인과 삭제 사이에 다른 요청이 끼면 조건이 어긋나고, 무엇보다 빠뜨리기 쉽다. (AGENTS.md §1)
+     *
+     * <p>지운 행 수를 돌려주지 않는다. 호출자가 그 값으로 분기하면 "없는 항목"과 "남의 항목"이
+     * 응답에서 갈리는데, 그러면 ID를 바꿔가며 실재 여부를 알아낼 수 있다.
+     * 404를 쓰기로 한 이유가 그대로 무너진다. ({@code docs/api-contract.md} §4)
+     */
+    void deleteByIdAndDeviceId(String savedTripId, String deviceId) {
+        jdbcTemplate.update(
+                "DELETE FROM saved_trips WHERE saved_trip_id = ? AND device_id = ?",
+                savedTripId, deviceId
+        );
+    }
 }

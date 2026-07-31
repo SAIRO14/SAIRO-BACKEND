@@ -90,4 +90,25 @@ class SavedTripService {
                 hasNext ? SavedTripCursor.from(page.get(page.size() - 1)).encode() : null
         );
     }
+
+    /**
+     * 저장을 해제한다. (#32)
+     *
+     * <p>소유자 조건은 리포지토리 쿼리에 있다. 여기서 먼저 읽어 확인하지 않는다.
+     *
+     * <p><b>지울 것이 없어도 성공이다.</b> 세 경우가 모두 같은 응답으로 나간다.
+     * 내 항목을 지웠을 때, 이미 지워진 항목을 다시 지웠을 때, 남의 항목을 지우려 했을 때다.
+     *
+     * <p>앞의 둘은 멱등성 때문이다. 네트워크 재시도나 연속 탭으로 같은 요청이 두 번 도착하는데,
+     * 두 번째가 실패로 나가면 클라이언트는 지워지지 않았다고 판단한다.
+     * ({@code docs/api-contract.md} §4)
+     *
+     * <p>남의 항목까지 여기 묶은 것은 <b>존재를 감추기 위해서다.</b> 남의 항목만 404로 답하면
+     * 없는 ID는 성공, 있는 ID는 404가 되어 ID를 바꿔가며 실재 여부를 알아낼 수 있다.
+     * 403 대신 404를 쓰기로 한 이유가 그대로 무너지므로, 응답으로 구분하지 않는다.
+     * 그래서 이 경로는 {@code SAVED_TRIP_NOT_FOUND}도 {@code SAVED_TRIP_FORBIDDEN}도 던지지 않는다.
+     */
+    void delete(String deviceId, String savedTripId) {
+        savedTripRepository.deleteByIdAndDeviceId(savedTripId, deviceId);
+    }
 }

@@ -20,8 +20,10 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -413,7 +415,144 @@ class SavedTripApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
+    // ─── 저장 해제 (#32) ─────────────────────────────────────────────────────
+    //
+    // 이 엔드포인트는 무엇을 지웠는지 응답으로 알려주지 않는다. 그래서 응답만 보는 테스트는
+    // 아무것도 검증하지 못한다. 어떤 행이 남았는지를 DB에서 함께 확인한다.
+
+    @Test
+    void delete_withOwnSavedTrip_returns204AndRemovesRow() throws Exception {
+        String courseId = insertCourse(DEVICE_A);
+        String savedTripId = insertSavedTrip(DEVICE_A, courseId, "제주도", at(10, 0));
+
+        mockMvc.perform(deleteRequest(DEVICE_A, savedTripId))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+
+        assertThat(savedTripCount(DEVICE_A)).isZero();
+    }
+
+    /**
+     * 같은 요청을 두 번 보내도 둘 다 성공이다. (완료 조건)
+     *
+     * <p>네트워크 재시도나 연속 탭으로 같은 요청이 두 번 도착한다. 두 번째가 실패로 나가면
+     * 클라이언트는 해제되지 않았다고 판단한다. ({@code docs/api-contract.md} §4)
+     */
+    @Test
+    void delete_calledTwice_succeedsBothTimes() throws Exception {
+        String courseId = insertCourse(DEVICE_A);
+        String savedTripId = insertSavedTrip(DEVICE_A, courseId, "제주도", at(10, 0));
+
+        mockMvc.perform(deleteRequest(DEVICE_A, savedTripId)).andExpect(status().isNoContent());
+        mockMvc.perform(deleteRequest(DEVICE_A, savedTripId)).andExpect(status().isNoContent());
+
+        assertThat(savedTripCount(DEVICE_A)).isZero();
+    }
+
+    @Test
+    void delete_withUnknownSavedTripId_returns204() throws Exception {
+        mockMvc.perform(deleteRequest(DEVICE_A, UUID.randomUUID().toString()))
+                .andExpect(status().isNoContent());
+    }
+
+    /**
+     * 남의 저장 항목은 지워지지 않는다. (완료 조건)
+     *
+     * <p>소유자 조건이 쿼리에 있어 행이 그대로 남는다는 것을 DB에서 확인한다.
+     * 상태 코드만 보면 조건이 빠져도 통과한다.
+     */
+    @Test
+    void delete_withAnotherDevicesSavedTrip_doesNotRemoveRow() throws Exception {
+        String courseOfB = insertCourse(DEVICE_B);
+        String savedByB = insertSavedTrip(DEVICE_B, courseOfB, "강원", at(10, 0));
+
+        mockMvc.perform(deleteRequest(DEVICE_A, savedByB))
+                .andExpect(status().isNoContent());
+
+        assertThat(savedTripCount(DEVICE_B)).isEqualTo(1);
+    }
+
+    /**
+     * 남의 항목과 없는 항목의 응답이 <b>완전히 같다.</b>
+     *
+     * <p>둘이 갈리면 {@code savedTripId}를 바꿔가며 그 ID가 실재하는지 알아낼 수 있다.
+     * 403 대신 404를 쓰기로 한 이유가 그대로 무너진다. ({@code docs/api-contract.md} §4)
+     *
+     * <p>바로 위 두 테스트가 각각 204를 확인하지만, 둘을 나란히 두고 비교하는 테스트가 따로 있어야
+     * 한쪽 응답만 바꾸는 변경이 실패로 드러난다.
+     */
+    @Test
+    void delete_withAnotherDevicesSavedTrip_isIndistinguishableFromUnknownId() throws Exception {
+        String courseOfB = insertCourse(DEVICE_B);
+        String savedByB = insertSavedTrip(DEVICE_B, courseOfB, "강원", at(10, 0));
+
+        var theirs = mockMvc.perform(deleteRequest(DEVICE_A, savedByB)).andReturn().getResponse();
+        var unknown = mockMvc.perform(deleteRequest(DEVICE_A, UUID.randomUUID().toString()))
+                .andReturn().getResponse();
+
+        assertThat(theirs.getStatus()).isEqualTo(unknown.getStatus());
+        assertThat(theirs.getContentAsString()).isEqualTo(unknown.getContentAsString());
+    }
+
+    /** 해제는 저장 목록에서만 뺀다. 코스는 남아 다시 저장할 수 있다. */
+    @Test
+    void delete_withOwnSavedTrip_keepsCourse() throws Exception {
+        String courseId = createCourse("제주도", "\"spot-a\", \"spot-b\", \"spot-c\", \"spot-d\"");
+        String savedTripId = extract(saveResponseBody(DEVICE_A, courseId), "savedTripId");
+
+        mockMvc.perform(deleteRequest(DEVICE_A, savedTripId)).andExpect(status().isNoContent());
+
+        mockMvc.perform(saveRequest(DEVICE_A, courseId)).andExpect(status().isCreated());
+        assertThat(savedTripCount(DEVICE_A)).isEqualTo(1);
+    }
+
+    @Test
+    void delete_withoutSavedTripId_returns400() throws Exception {
+        mockMvc.perform(delete("/saved-trips").header("X-Device-Id", DEVICE_A))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void delete_withMalformedSavedTripId_returns400() throws Exception {
+        mockMvc.perform(deleteRequest(DEVICE_A, "not-a-saved-trip"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    /**
+     * 대문자 UUID는 204가 아니라 400이다.
+     *
+     * <p>{@code saved_trips.saved_trip_id}는 TEXT라 조회가 대소문자를 구분한다. 통과시키면
+     * 지워지지 않은 채 204가 나가 클라이언트가 해제됐다고 믿는다. ({@code common/IdFormat})
+     */
+    @Test
+    void delete_withUppercaseSavedTripId_returns400AndKeepsRow() throws Exception {
+        String courseId = insertCourse(DEVICE_A);
+        String savedTripId = insertSavedTrip(DEVICE_A, courseId, "제주도", at(10, 0));
+
+        mockMvc.perform(deleteRequest(DEVICE_A, savedTripId.toUpperCase(Locale.ROOT)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        assertThat(savedTripCount(DEVICE_A)).isEqualTo(1);
+    }
+
+    @Test
+    void delete_withoutDeviceIdHeader_returns400() throws Exception {
+        mockMvc.perform(delete("/saved-trips").param("savedTripId", UUID.randomUUID().toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("DEVICE_ID_REQUIRED"));
+    }
+
     // ─── helpers ────────────────────────────────────────────────────────────
+
+    private MockHttpServletRequestBuilder deleteRequest(String deviceId, String savedTripId) {
+        return delete("/saved-trips")
+                .header("X-Device-Id", deviceId)
+                .param("savedTripId", savedTripId);
+    }
+
 
     /** 커서를 따라 끝까지 읽고 나온 순서대로 저장 항목 ID를 모은다. */
     private List<String> readAllIdsByPaging(String deviceId, int size) throws Exception {
@@ -475,6 +614,19 @@ class SavedTripApiTest extends IntegrationTestBase {
      * <p>API로는 저장 시각과 ID를 정할 수 없어 정렬·커서 경계를 만들 수 없다.
      * 지문은 유니크 인덱스에만 걸리므로 행마다 다르게 준다.
      */
+    /**
+     * ID를 서버가 발급하는 형식(소문자 UUID v4)으로 넣고 그 값을 돌려준다.
+     *
+     * <p>해제는 이 ID를 쿼리 파라미터로 받아 형식을 검증하므로, 정렬 테스트가 쓰는
+     * {@code "t1"} 같은 ID로는 400에 걸려 경로를 확인할 수 없다.
+     */
+    private String insertSavedTrip(String deviceId, String courseId,
+                                   String regionKey, LocalDateTime createdAt) {
+        String savedTripId = UUID.randomUUID().toString();
+        insertSavedTrip(savedTripId, deviceId, courseId, regionKey, createdAt);
+        return savedTripId;
+    }
+
     private void insertSavedTrip(String savedTripId, String deviceId, String courseId,
                                  String regionKey, LocalDateTime createdAt) {
         jdbcTemplate.update("""
