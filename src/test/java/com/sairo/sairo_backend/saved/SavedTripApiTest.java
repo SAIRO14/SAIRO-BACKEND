@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.ObjectMapper;
 
 import java.sql.Timestamp;
@@ -396,7 +397,7 @@ class SavedTripApiTest extends IntegrationTestBase {
                 .andReturn().getResponse().getContentAsString();
     }
 
-    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder listRequest(
+    private MockHttpServletRequestBuilder listRequest(
             String deviceId, String cursor, Integer size) {
         var request = get("/saved-trips").header("X-Device-Id", deviceId);
         if (cursor != null) {
