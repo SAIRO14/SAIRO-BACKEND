@@ -74,7 +74,7 @@ public class SavedTripController {
     public SavedTripListResponse findPage(
             @DeviceId String deviceId,
 
-            @Parameter(description = "이전 응답의 nextCursor. 첫 페이지에서는 생략한다.")
+            @Parameter(description = "이전 응답의 nextCursor. 첫 페이지에서는 생략한다. 빈 값은 생략과 같다.")
             @RequestParam(required = false) String cursor,
 
             @Parameter(description = "한 페이지 항목 수", example = "20")

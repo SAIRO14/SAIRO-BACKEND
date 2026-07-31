@@ -72,7 +72,12 @@ class SavedTripService {
      * 항목 하나가 깨져 목록 전체가 실패하는 경우도 없다. ({@code docs/api-contract.md} §6)
      */
     SavedTripListResponse findPage(String deviceId, String encodedCursor, int size) {
-        SavedTripCursor cursor = encodedCursor == null ? null : SavedTripCursor.decode(encodedCursor);
+        // 비어 있는 커서는 없는 것과 같게 다룬다. 클라이언트가 null 커서를 빈 문자열로
+        // 직렬화하는 일이 흔한데, 그때 첫 페이지 요청이 400이 되면 목록을 시작할 수 없다.
+        // 디바이스 헤더와 같은 판단이다. (docs/api-contract.md §4)
+        // §5가 막으려는 "조용히 첫 페이지 주기"에는 해당하지 않는다. 커서를 준 적이 없는 요청이다.
+        boolean firstPage = encodedCursor == null || encodedCursor.isBlank();
+        SavedTripCursor cursor = firstPage ? null : SavedTripCursor.decode(encodedCursor);
 
         List<SavedTrip> rows = savedTripRepository.findPage(deviceId, cursor, size + 1);
 

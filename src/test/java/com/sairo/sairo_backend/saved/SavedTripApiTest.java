@@ -9,9 +9,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.ObjectMapper;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -351,6 +353,39 @@ class SavedTripApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.code").value("INVALID_CURSOR"));
     }
 
+    /**
+     * 커서에 실린 시각이 {@code TIMESTAMP} 범위를 벗어나도 400이다. 500이 아니다.
+     *
+     * <p>여기서 500이 나가면 응답의 {@code retryable}이 {@code true}라 클라이언트는 계약상
+     * 같은 커서로 재시도하게 되고, 몇 번을 해도 같은 500이라 목록이 그 자리에서 멈춘다.
+     * 상태 코드만 보는 것이 아니라 {@code INVALID_CURSOR}까지 확인하는 이유다.
+     */
+    @Test
+    void findPage_withCursorTimestampOutOfRange_returns400() throws Exception {
+        String cursor = base64("v1|-9223372036854775807|" + UUID.randomUUID());
+
+        mockMvc.perform(listRequest(DEVICE_A, cursor, null))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CURSOR"));
+    }
+
+    /**
+     * 빈 커서는 커서를 주지 않은 것과 같게 다룬다. (계약 §4의 빈 헤더 규칙과 같은 판단)
+     *
+     * <p>클라이언트 HTTP 라이브러리가 {@code null} 커서를 빈 문자열로 직렬화하는 일이 흔한데,
+     * 그때 첫 페이지 요청이 400이 되면 목록을 아예 시작할 수 없다.
+     */
+    @Test
+    void findPage_withEmptyCursor_returnsFirstPage() throws Exception {
+        String courseId = insertCourse(DEVICE_A);
+        insertSavedTrip("trip-1", DEVICE_A, courseId, "제주도", at(10, 0));
+
+        mockMvc.perform(listRequest(DEVICE_A, "", null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].savedTripId").value("trip-1"));
+    }
+
     @Test
     void findPage_withoutDeviceIdHeader_returns400() throws Exception {
         mockMvc.perform(get("/saved-trips"))
@@ -407,6 +442,11 @@ class SavedTripApiTest extends IntegrationTestBase {
             request = request.param("size", String.valueOf(size));
         }
         return request;
+    }
+
+    /** 정상 경로로는 만들 수 없는 커서를 손으로 짠다. 인코딩 형식은 {@code SavedTripCursor}와 같다. */
+    private String base64(String raw) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
     }
 
     private LocalDateTime at(int hour, int minute) {

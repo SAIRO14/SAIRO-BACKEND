@@ -4,6 +4,7 @@ import com.sairo.sairo_backend.common.BusinessException;
 import com.sairo.sairo_backend.common.ErrorCode;
 
 import java.nio.charset.StandardCharsets;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -31,6 +32,16 @@ record SavedTripCursor(LocalDateTime createdAt, String savedTripId) {
     private static final String VERSION = "v1";
 
     private static final String DELIMITER = "|";
+
+    /**
+     * {@code TIMESTAMP} 컬럼에 실을 수 있는 연도 범위다.
+     *
+     * <p>PostgreSQL의 {@code timestamp}는 이 범위를 벗어난 값을 거절한다. 걸러내지 않으면
+     * 커서에 실린 값이 그대로 쿼리 파라미터로 나가 드라이버 예외가 되고,
+     * 400 {@code INVALID_CURSOR}여야 할 응답이 500 {@code INTERNAL_ERROR}가 된다.
+     */
+    private static final int MIN_YEAR = 1;
+    private static final int MAX_YEAR = 9999;
 
     String encode() {
         // 마이크로초까지만 쓴다. TIMESTAMP 컬럼의 정밀도가 마이크로초라 그 아래는 DB에 남지 않고,
@@ -72,9 +83,30 @@ record SavedTripCursor(LocalDateTime createdAt, String savedTripId) {
             throw new BusinessException(ErrorCode.INVALID_CURSOR, "커서를 읽을 수 없습니다.");
         }
 
-        LocalDateTime createdAt = LocalDateTime.ofInstant(
-                Instant.EPOCH.plus(micros, ChronoUnit.MICROS), ZoneOffset.UTC);
-        return new SavedTripCursor(createdAt, parts[2]);
+        return new SavedTripCursor(toCreatedAt(micros), parts[2]);
+    }
+
+    /**
+     * 마이크로초 값을 저장 시각으로 되돌린다. 실을 수 없는 값은 {@code INVALID_CURSOR}다.
+     *
+     * <p>파싱을 통과한 {@code long}이라고 해서 쓸 수 있는 시각인 것은 아니다. 값에 따라
+     * {@code Instant} 단계에서 예외가 나기도 하고, 예외 없이 통과했다가 DB에서 거절되기도 한다.
+     * 두 경로를 모두 여기서 막는다. 어차피 이 범위 밖의 시각은 어떤 행도 가리키지 못하므로
+     * 리포지토리까지 내려보낼 이유가 없다.
+     */
+    private static LocalDateTime toCreatedAt(long micros) {
+        LocalDateTime createdAt;
+        try {
+            createdAt = LocalDateTime.ofInstant(
+                    Instant.EPOCH.plus(micros, ChronoUnit.MICROS), ZoneOffset.UTC);
+        } catch (DateTimeException | ArithmeticException e) {
+            throw new BusinessException(ErrorCode.INVALID_CURSOR, "커서를 읽을 수 없습니다.", e);
+        }
+
+        if (createdAt.getYear() < MIN_YEAR || createdAt.getYear() > MAX_YEAR) {
+            throw new BusinessException(ErrorCode.INVALID_CURSOR, "커서를 읽을 수 없습니다.");
+        }
+        return createdAt;
     }
 
     static SavedTripCursor from(SavedTrip savedTrip) {

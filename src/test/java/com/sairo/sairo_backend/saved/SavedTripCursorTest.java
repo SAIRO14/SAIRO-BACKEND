@@ -83,6 +83,26 @@ class SavedTripCursorTest {
                 .isInstanceOf(BusinessException.class);
     }
 
+    /**
+     * 파싱되는 {@code long}이라고 해서 쓸 수 있는 시각인 것은 아니다.
+     *
+     * <p>{@code TIMESTAMP} 컬럼 범위를 벗어난 값을 그대로 흘려보내면 PostgreSQL이
+     * "timestamp out of range"로 실패해 500이 나간다. 그 코드는 {@code retryable: true}라
+     * 클라이언트가 계약상 같은 커서로 재시도하게 되고, 커서를 버리라는 신호가 닿지 않는다.
+     * 어차피 어떤 행도 가리키지 못하는 값이므로 읽을 수 없는 커서로 다룬다.
+     */
+    @Test
+    void decode_withTimestampBelowSupportedRange_throwsInvalidCursor() {
+        assertThatThrownBy(() -> SavedTripCursor.decode(base64("v1|-9223372036854775807|" + SAVED_TRIP_ID)))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void decode_withTimestampAboveSupportedRange_throwsInvalidCursor() {
+        assertThatThrownBy(() -> SavedTripCursor.decode(base64("v1|9223372036854775807|" + SAVED_TRIP_ID)))
+                .isInstanceOf(BusinessException.class);
+    }
+
     private String base64(String raw) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
     }
