@@ -318,7 +318,7 @@ class CourseApiTest extends IntegrationTestBase {
     }
 
     @Test
-    void getCourse_returnsRegionNameAndDays() throws Exception {
+    void getCourse_withValidOwner_returnsRegionNameAndDays() throws Exception {
         String courseId = createCourse();
 
         mockMvc.perform(get("/courses/" + courseId).header("X-Device-Id", DEVICE_A))
