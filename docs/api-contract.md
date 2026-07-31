@@ -84,7 +84,7 @@ Swagger의 각 엔드포인트에도 발생 가능한 코드가 적혀 있다.
 | 장소 | `PLACE_NOT_FOUND` |
 | 코스 | `INSUFFICIENT_SPOTS` `COURSE_NOT_FOUND` `COURSE_REGION_MISMATCH` |
 | 공유 | `SHARE_CREATION_FAILED` `SHARED_COURSE_NOT_FOUND` |
-| 저장 여행지 | `SAVED_TRIP_NOT_FOUND` `SAVED_TRIP_CONFLICT` `SAVED_TRIP_FORBIDDEN` |
+| 저장 여행지 | `SAVED_TRIP_NOT_FOUND` `SAVED_TRIP_CONFLICT` `SAVED_TRIP_FORBIDDEN` `INVALID_CURSOR` |
 | 외부 연동 | `EXTERNAL_API_FAILED` |
 
 `SAVED_TRIP_CONFLICT`는 정의만 되어 있고 아직 어느 엔드포인트도 던지지 않는다. 이유는 §4 멱등성에 있다.
@@ -175,6 +175,13 @@ OpenAPI에는 `SwaggerConfig`가 헤더 파라미터와 `DEVICE_ID_*` 400 응답
 - 커서는 클라이언트가 해석하지 않는 불투명한 문자열로 준다.
   내부 DB ID나 시각을 그대로 노출하지 않는다.
 - 다음 페이지가 없으면 커서를 `null`로 반환한다.
+- **읽을 수 없는 커서는 `INVALID_CURSOR`로 거절한다.** 조용히 무시하고 첫 페이지를 주지 않는다.
+  클라이언트가 목록 끝에 도달했다고 착각한 채 처음부터 다시 읽어 같은 항목을 반복하게 된다.
+  이 코드를 받으면 커서를 버리고 첫 페이지부터 다시 읽는다.
+- 커서에 형식 버전을 넣어 옛 커서가 잘못 해석되지 않게 한다. 형식이 바뀌면 옛 커서는
+  `INVALID_CURSOR`가 된다. (`saved/SavedTripCursor`)
+- **커서는 위치일 뿐 권한이 아니다.** 남의 커서를 실어도 소유자 조건이 쿼리에 있으므로
+  남의 항목은 나오지 않는다.
 
 ## 6. 부분 실패 처리
 

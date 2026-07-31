@@ -65,6 +65,12 @@ public enum ErrorCode {
     SAVED_TRIP_CONFLICT(HttpStatus.CONFLICT, "이미 저장한 여행지입니다.", false),
     SAVED_TRIP_FORBIDDEN(HttpStatus.NOT_FOUND, "저장한 여행지를 찾을 수 없습니다.", false),
 
+    /**
+     * 목록 커서를 읽을 수 없는 경우. {@code INVALID_REQUEST}와 나누는 이유는 복구 방법이 달라서다.
+     * 커서를 버리고 첫 페이지부터 다시 읽으면 되므로 클라이언트가 이 코드로 분기할 수 있어야 한다.
+     */
+    INVALID_CURSOR(HttpStatus.BAD_REQUEST, "잘못된 커서입니다.", false),
+
     // ─── 외부 연동 ───────────────────────────────────────────────────────────
     EXTERNAL_API_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "외부 정보를 불러오지 못했어요.", true);
 

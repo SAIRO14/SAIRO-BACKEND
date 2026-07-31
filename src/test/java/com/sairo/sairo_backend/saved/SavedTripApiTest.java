@@ -8,10 +8,15 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.ObjectMapper;
 
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -210,7 +215,230 @@ class SavedTripApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
     }
 
+    // ─── 목록 조회 (#31) ─────────────────────────────────────────────────────
+
+    @Test
+    void findPage_withNoSavedTrips_returnsEmptyListAndNullCursor() throws Exception {
+        mockMvc.perform(listRequest(DEVICE_A, null, null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+    }
+
+    @Test
+    void findPage_returnsSavedTripsInRecentFirstOrder() throws Exception {
+        String courseId = insertCourse(DEVICE_A);
+        insertSavedTrip("t1", DEVICE_A, courseId, "제주도", at(10, 0));
+        insertSavedTrip("t2", DEVICE_A, courseId, "강원", at(11, 0));
+        insertSavedTrip("t3", DEVICE_A, courseId, "경북", at(12, 0));
+
+        mockMvc.perform(listRequest(DEVICE_A, null, null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.items[0].savedTripId").value("t3"))
+                .andExpect(jsonPath("$.items[1].savedTripId").value("t2"))
+                .andExpect(jsonPath("$.items[2].savedTripId").value("t1"))
+                .andExpect(jsonPath("$.items[0].regionName").value("경북"))
+                .andExpect(jsonPath("$.items[0].courseId").value(courseId))
+                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+    }
+
+    /**
+     * 커서로 끝까지 읽으면 모든 항목이 <b>정확히 한 번씩</b> 나온다.
+     *
+     * <p>커서 페이지의 실패는 대개 "빠짐"이나 "중복"으로 나타나므로 전체를 모아 검증한다.
+     */
+    @Test
+    void findPage_readToEnd_returnsEveryItemExactlyOnce() throws Exception {
+        String courseId = insertCourse(DEVICE_A);
+        for (int i = 0; i < 5; i++) {
+            insertSavedTrip("t" + i, DEVICE_A, courseId, "제주도", at(10, i));
+        }
+
+        assertThat(readAllIdsByPaging(DEVICE_A, 2))
+                .containsExactly("t4", "t3", "t2", "t1", "t0");
+    }
+
+    /**
+     * 저장 시각이 같아도 순서가 흔들리지 않는다.
+     *
+     * <p>{@code created_at}만으로 정렬하면 페이지 경계에서 같은 항목이 두 번 나오거나 빠진다.
+     * {@code saved_trip_id}를 tie-breaker로 함께 쓰는 이유다.
+     * ({@code docs/api-contract.md} §5)
+     */
+    @Test
+    void findPage_withIdenticalCreatedAt_returnsEveryItemExactlyOnce() throws Exception {
+        String courseId = insertCourse(DEVICE_A);
+        LocalDateTime sameMoment = at(10, 0);
+        for (int i = 0; i < 5; i++) {
+            insertSavedTrip("t" + i, DEVICE_A, courseId, "제주도", sameMoment);
+        }
+
+        assertThat(readAllIdsByPaging(DEVICE_A, 2))
+                .containsExactly("t4", "t3", "t2", "t1", "t0");
+    }
+
+    @Test
+    void findPage_withMoreItemsThanSize_returnsCursor() throws Exception {
+        String courseId = insertCourse(DEVICE_A);
+        insertSavedTrip("t1", DEVICE_A, courseId, "제주도", at(10, 0));
+        insertSavedTrip("t2", DEVICE_A, courseId, "강원", at(11, 0));
+
+        mockMvc.perform(listRequest(DEVICE_A, null, 1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.nextCursor").isNotEmpty());
+    }
+
+    /**
+     * 남은 항목 수가 size와 정확히 같으면 다음 페이지는 없다.
+     *
+     * <p>size + 1을 읽어 판정하므로 이 경계에서 빈 페이지를 가리키는 커서가 나가기 쉽다.
+     */
+    @Test
+    void findPage_withExactlySizeItems_returnsNullCursor() throws Exception {
+        String courseId = insertCourse(DEVICE_A);
+        insertSavedTrip("t1", DEVICE_A, courseId, "제주도", at(10, 0));
+        insertSavedTrip("t2", DEVICE_A, courseId, "강원", at(11, 0));
+
+        mockMvc.perform(listRequest(DEVICE_A, null, 2))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+    }
+
+    /** 다른 기기의 저장 항목은 목록에 섞이지 않는다. 소유자 조건은 쿼리에 있다. (AGENTS.md §1) */
+    @Test
+    void findPage_withAnotherDevicesSavedTrips_returnsOnlyOwn() throws Exception {
+        String courseOfA = insertCourse(DEVICE_A);
+        String courseOfB = insertCourse(DEVICE_B);
+        insertSavedTrip("mine", DEVICE_A, courseOfA, "제주도", at(10, 0));
+        insertSavedTrip("theirs", DEVICE_B, courseOfB, "강원", at(11, 0));
+
+        mockMvc.perform(listRequest(DEVICE_A, null, null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].savedTripId").value("mine"));
+    }
+
+    /** 남의 커서를 그대로 써도 남의 항목은 나오지 않는다. 커서는 위치일 뿐 권한이 아니다. */
+    @Test
+    void findPage_withAnotherDevicesCursor_stillReturnsOnlyOwn() throws Exception {
+        String courseOfA = insertCourse(DEVICE_A);
+        String courseOfB = insertCourse(DEVICE_B);
+        insertSavedTrip("mine", DEVICE_A, courseOfA, "제주도", at(10, 0));
+        insertSavedTrip("theirs-new", DEVICE_B, courseOfB, "강원", at(12, 0));
+        insertSavedTrip("theirs-old", DEVICE_B, courseOfB, "경북", at(9, 0));
+
+        String cursorOfB = extract(listBody(DEVICE_B, null, 1), "nextCursor");
+
+        mockMvc.perform(listRequest(DEVICE_A, cursorOfB, null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].savedTripId").value("mine"));
+    }
+
+    /**
+     * 읽을 수 없는 커서는 조용히 첫 페이지로 되돌리지 않고 400으로 거절한다.
+     *
+     * <p>무시하면 클라이언트가 목록을 처음부터 다시 읽으며 같은 항목을 반복한다.
+     */
+    @Test
+    void findPage_withMalformedCursor_returns400() throws Exception {
+        mockMvc.perform(listRequest(DEVICE_A, "!!! not a cursor !!!", null))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CURSOR"));
+    }
+
+    @Test
+    void findPage_withoutDeviceIdHeader_returns400() throws Exception {
+        mockMvc.perform(get("/saved-trips"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("DEVICE_ID_REQUIRED"));
+    }
+
+    @Test
+    void findPage_withSizeAboveMax_returns400() throws Exception {
+        mockMvc.perform(listRequest(DEVICE_A, null, 51))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void findPage_withSizeBelowMin_returns400() throws Exception {
+        mockMvc.perform(listRequest(DEVICE_A, null, 0))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
     // ─── helpers ────────────────────────────────────────────────────────────
+
+    /** 커서를 따라 끝까지 읽고 나온 순서대로 저장 항목 ID를 모은다. */
+    private List<String> readAllIdsByPaging(String deviceId, int size) throws Exception {
+        List<String> ids = new ArrayList<>();
+        String cursor = null;
+        // 페이지 수 상한을 둔다. 커서가 전진하지 않는 버그가 무한 루프 대신 실패로 드러나게 한다.
+        for (int page = 0; page < 20; page++) {
+            String body = listBody(deviceId, cursor, size);
+            objectMapper.readTree(body).path("items")
+                    .forEach(item -> ids.add(item.path("savedTripId").asString()));
+            cursor = objectMapper.readTree(body).path("nextCursor").asString(null);
+            if (cursor == null) {
+                return ids;
+            }
+        }
+        throw new AssertionError("커서가 끝나지 않았다. 지금까지 읽은 항목: " + ids);
+    }
+
+    private String listBody(String deviceId, String cursor, Integer size) throws Exception {
+        return mockMvc.perform(listRequest(deviceId, cursor, size))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder listRequest(
+            String deviceId, String cursor, Integer size) {
+        var request = get("/saved-trips").header("X-Device-Id", deviceId);
+        if (cursor != null) {
+            request = request.param("cursor", cursor);
+        }
+        if (size != null) {
+            request = request.param("size", String.valueOf(size));
+        }
+        return request;
+    }
+
+    private LocalDateTime at(int hour, int minute) {
+        return LocalDateTime.of(2026, 7, 31, hour, minute);
+    }
+
+    private String insertCourse(String deviceId) {
+        String courseId = UUID.randomUUID().toString();
+        jdbcTemplate.update(
+                "INSERT INTO courses (course_id, device_id, course_data) VALUES (?, ?, ?::jsonb)",
+                courseId, deviceId, """
+                        {"regionName":"제주도","day1":[],"day2":[]}
+                        """);
+        return courseId;
+    }
+
+    /**
+     * 저장 행을 직접 넣는다.
+     *
+     * <p>API로는 저장 시각과 ID를 정할 수 없어 정렬·커서 경계를 만들 수 없다.
+     * 지문은 유니크 인덱스에만 걸리므로 행마다 다르게 준다.
+     */
+    private void insertSavedTrip(String savedTripId, String deviceId, String courseId,
+                                 String regionKey, LocalDateTime createdAt) {
+        jdbcTemplate.update("""
+                        INSERT INTO saved_trips
+                            (saved_trip_id, device_id, course_id, region_key, course_fingerprint, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                savedTripId, deviceId, courseId, regionKey,
+                "fingerprint-" + savedTripId, Timestamp.valueOf(createdAt));
+    }
+
 
     private void insertSpot(String id, String name, String region, double lat, double lng) {
         jdbcTemplate.update(
