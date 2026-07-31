@@ -159,12 +159,6 @@ class CourseApiTest extends IntegrationTestBase {
     }
 
     /**
-     * 공유 스냅샷은 서버가 저장한 코스에서만 나온다.
-     *
-     * <p>이전에는 경로의 courseId를 무시하고 요청 본문을 그대로 저장해,
-     * 서버가 만들지 않은 코스로도 공유 링크를 받을 수 있었다.
-     */
-    /**
      * 남의 코스는 공유할 수 없다. 403이 아니라 404다.
      *
      * <p>403이면 "그 courseId는 존재한다"는 사실을 알려주게 된다. (docs/api-contract.md §4)

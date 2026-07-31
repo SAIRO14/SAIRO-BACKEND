@@ -37,7 +37,7 @@ public class SavedTripController {
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "저장됨 (이미 저장된 코스면 기존 항목)"),
             @ApiResponse(responseCode = "400", description = "INVALID_REQUEST — courseId 누락 또는 UUID 형식 아님"),
-            @ApiResponse(responseCode = "404", description = "COURSE_NOT_FOUND — 해당 코스가 없음"),
+            @ApiResponse(responseCode = "404", description = "COURSE_NOT_FOUND — 해당 코스가 없거나 다른 기기의 코스임"),
             @ApiResponse(responseCode = "500", description = "INTERNAL_ERROR — 코스 스냅샷 역직렬화 실패")
     })
     @PostMapping
