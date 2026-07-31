@@ -47,6 +47,28 @@ public class CourseController {
     }
 
     @Operation(
+            summary = "코스 조회",
+            description = """
+                    저장된 코스의 지역과 Day 1·Day 2를 반환한다.
+
+                    **자기가 만든 코스만 조회할 수 있다.** 남의 코스는 없는 것과 같게 404다.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "404", description = "COURSE_NOT_FOUND — 해당 코스가 없거나 다른 기기의 코스임"),
+            @ApiResponse(responseCode = "500", description = "INTERNAL_ERROR — 코스 스냅샷 역직렬화 실패")
+    })
+    @GetMapping("/{courseId}")
+    public CourseResponse getCourse(
+            @DeviceId String deviceId,
+            @Parameter(description = "조회할 코스 ID", required = true, example = "8f14e45f-ea8d-4f4a-9c1b-2c3d4e5f6a7b")
+            @PathVariable String courseId
+    ) {
+        return courseService.getCourse(deviceId, courseId);
+    }
+
+    @Operation(
             summary = "코스 공유 스냅샷 생성",
             description = """
                     `POST /courses`가 저장해둔 코스를 읽어 읽기 전용 스냅샷으로 남기고 공유 링크를 반환한다.

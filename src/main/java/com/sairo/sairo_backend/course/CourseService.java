@@ -49,7 +49,7 @@ public class CourseService {
         courseRepository.save(courseId, deviceId, objectMapper.writeValueAsString(
                 new CourseSnapshot(regionName, day1, day2)));
 
-        return new CourseResponse(courseId, day1, day2);
+        return new CourseResponse(courseId, regionName, day1, day2);
     }
 
     /**
@@ -82,6 +82,21 @@ public class CourseService {
                     "요청한 지역에 속하지 않는 장소가 있습니다.");
         }
         return resolved;
+    }
+
+    /**
+     * 자기가 만든 코스만 조회할 수 있다. 남의 코스는 없는 것과 같게 404다. (api-contract.md §4)
+     */
+    public CourseResponse getCourse(String deviceId, String courseId) {
+        String json = courseRepository.findCourseDataByIdAndDeviceId(courseId, deviceId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COURSE_NOT_FOUND));
+
+        try {
+            CourseSnapshot snapshot = objectMapper.readValue(json, CourseSnapshot.class);
+            return new CourseResponse(courseId, snapshot.regionName(), snapshot.day1(), snapshot.day2());
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "코스 데이터 역직렬화 실패", e);
+        }
     }
 
     /**

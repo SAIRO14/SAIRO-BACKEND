@@ -4,6 +4,7 @@ import java.util.List;
 
 public record CourseResponse(
         String courseId,
+        String regionName,
         List<SpotSummary> day1,
         List<SpotSummary> day2
 ) {}

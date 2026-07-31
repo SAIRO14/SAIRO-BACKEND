@@ -61,6 +61,7 @@ class CourseApiTest extends IntegrationTestBase {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.courseId").isNotEmpty())
+                .andExpect(jsonPath("$.regionName").value("제주"))
                 .andExpect(jsonPath("$.day1").isArray())
                 .andExpect(jsonPath("$.day2").isArray())
                 .andExpect(jsonPath("$.day1.length()").value(2))
@@ -314,6 +315,47 @@ class CourseApiTest extends IntegrationTestBase {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COURSE_REGION_MISMATCH"));
+    }
+
+    @Test
+    void getCourse_returnsRegionNameAndDays() throws Exception {
+        String courseId = createCourse();
+
+        mockMvc.perform(get("/courses/" + courseId).header("X-Device-Id", DEVICE_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courseId").value(courseId))
+                .andExpect(jsonPath("$.regionName").value("제주"))
+                .andExpect(jsonPath("$.day1").isArray())
+                .andExpect(jsonPath("$.day2").isArray())
+                .andExpect(jsonPath("$.day1.length()").value(2))
+                .andExpect(jsonPath("$.day2.length()").value(2));
+    }
+
+    /**
+     * 남의 코스는 없는 것과 같게 404다. 403이면 courseId가 존재한다는 사실을 알려주게 된다.
+     * (docs/api-contract.md §4)
+     */
+    @Test
+    void getCourse_withAnotherDevicesCourse_returns404() throws Exception {
+        String courseId = createCourse();
+
+        mockMvc.perform(get("/courses/" + courseId).header("X-Device-Id", DEVICE_B))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+    }
+
+    @Test
+    void getCourse_withUnknownCourseId_returns404() throws Exception {
+        mockMvc.perform(get("/courses/not-a-real-course").header("X-Device-Id", DEVICE_A))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+    }
+
+    @Test
+    void getCourse_withoutDeviceIdHeader_returns400() throws Exception {
+        mockMvc.perform(get("/courses/some-course-id"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("DEVICE_ID_REQUIRED"));
     }
 
     private String createCourse() throws Exception {
