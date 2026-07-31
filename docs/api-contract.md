@@ -75,7 +75,7 @@ Swagger의 각 엔드포인트에도 발생 가능한 코드가 적혀 있다.
 
 | 영역 | 코드 |
 |---|---|
-| 공통 | `INVALID_REQUEST` `RESOURCE_NOT_FOUND` `INTERNAL_ERROR` |
+| 공통 | `INVALID_REQUEST` `RESOURCE_NOT_FOUND` `INTERNAL_ERROR` `INVALID_CURSOR` |
 | 프로토콜 | `ENDPOINT_NOT_FOUND` `METHOD_NOT_ALLOWED` `UNSUPPORTED_MEDIA_TYPE` `NOT_ACCEPTABLE` |
 | 디바이스 식별 | `DEVICE_ID_REQUIRED` `DEVICE_ID_INVALID` |
 | 사진 풀 | `PHOTO_POOL_UNAVAILABLE` |
@@ -84,7 +84,7 @@ Swagger의 각 엔드포인트에도 발생 가능한 코드가 적혀 있다.
 | 장소 | `PLACE_NOT_FOUND` |
 | 코스 | `INSUFFICIENT_SPOTS` `COURSE_NOT_FOUND` `COURSE_REGION_MISMATCH` |
 | 공유 | `SHARE_CREATION_FAILED` `SHARED_COURSE_NOT_FOUND` |
-| 저장 여행지 | `SAVED_TRIP_NOT_FOUND` `SAVED_TRIP_CONFLICT` `SAVED_TRIP_FORBIDDEN` `INVALID_CURSOR` |
+| 저장 여행지 | `SAVED_TRIP_NOT_FOUND` `SAVED_TRIP_CONFLICT` `SAVED_TRIP_FORBIDDEN` |
 | 외부 연동 | `EXTERNAL_API_FAILED` |
 
 `SAVED_TRIP_CONFLICT`는 정의만 되어 있고 아직 어느 엔드포인트도 던지지 않는다. 이유는 §4 멱등성에 있다.
@@ -173,8 +173,14 @@ OpenAPI에는 `SwaggerConfig`가 헤더 파라미터와 `DEVICE_ID_*` 400 응답
 - 정렬 기준과 함께 **고유한 tie-breaker**를 포함한다. 생성 시각만으로 정렬하면
   같은 시각 항목의 순서가 흔들린다.
 - 커서는 클라이언트가 해석하지 않는 불투명한 문자열로 준다.
-  내부 DB ID나 시각을 그대로 노출하지 않는다.
-- 다음 페이지가 없으면 커서를 `null`로 반환한다.
+  형식을 언제든 바꿀 수 있게 하려는 것이지 **내용을 숨기려는 것이 아니다.**
+  base64는 인코딩이지 암호화가 아니라서 누구나 되돌려 읽을 수 있다.
+  따라서 **그 응답으로 이미 나가는 값만 커서에 담는다.** 익명 사용자 ID처럼 응답에 없는 값을
+  넣으면 불투명하다는 이유로 감춰졌다고 착각하게 된다.
+- 다음 페이지가 없으면 커서를 `null`로 반환한다. **필드를 빼지 않는다.**
+  없는 필드와 `null`을 구분하는 클라이언트가 있고, "마지막 페이지"라는 신호는 명시적이어야 한다.
+- 페이지 크기는 `size` 쿼리 파라미터로 받는다. **기본 20, 범위 1~50이다.**
+  범위 밖은 `INVALID_REQUEST`로 거절한다. 목록마다 다르게 정하지 않는다.
 - **읽을 수 없는 커서는 `INVALID_CURSOR`로 거절한다.** 조용히 무시하고 첫 페이지를 주지 않는다.
   클라이언트가 목록 끝에 도달했다고 착각한 채 처음부터 다시 읽어 같은 항목을 반복하게 된다.
   이 코드를 받으면 커서를 버리고 첫 페이지부터 다시 읽는다.

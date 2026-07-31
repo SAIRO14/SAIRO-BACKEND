@@ -22,9 +22,13 @@ import java.util.Base64;
  * 형식은 예고 없이 바뀔 수 있고, 그때 옛 커서는 {@code INVALID_CURSOR}가 된다.
  * 앞에 붙은 버전 표시가 그 판별을 맡는다.
  *
- * <p>인코딩은 base64url이다. 담기는 두 값은 모두 {@code POST /saved-trips} 응답으로 이미 나간
- * 자기 자신의 데이터라, 이 커서가 새로 노출하는 정보는 없다. 다른 사용자의 행을 가리키게 고쳐도
- * 조회 쿼리에 {@code device_id} 조건이 있어 남의 항목이 나오지 않는다.
+ * <p>인코딩은 base64url이다. <b>암호화가 아니라 누구나 되돌려 읽을 수 있다.</b> 그래서 담기는 두 값은
+ * 모두 저장 API 응답으로 이미 나간 자기 자신의 데이터로 한정한다. 이 커서가 새로 노출하는 정보는 없다.
+ * <b>여기에 응답으로 나가지 않는 값을 추가하지 않는다.</b> 불투명해 보인다는 이유로 감춰졌다고
+ * 착각하기 쉬운 자리다. ({@code docs/api-contract.md} §5)
+ *
+ * <p>다른 사용자의 행을 가리키게 고쳐도 조회 쿼리에 {@code device_id} 조건이 있어
+ * 남의 항목이 나오지 않는다. 커서는 위치일 뿐 권한이 아니다.
  */
 record SavedTripCursor(LocalDateTime createdAt, String savedTripId) {
 

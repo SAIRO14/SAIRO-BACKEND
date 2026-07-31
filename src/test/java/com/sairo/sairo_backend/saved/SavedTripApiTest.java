@@ -19,6 +19,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -219,13 +220,18 @@ class SavedTripApiTest extends IntegrationTestBase {
     }
 
     // ─── 목록 조회 (#31) ─────────────────────────────────────────────────────
+    //
+    // 마지막 페이지는 nextCursor를 null로 "담아서" 준다. 필드를 빼지 않는다. (계약 §5)
+    // 그래서 doesNotExist()가 아니라 value(nullValue())로 본다.
+    // doesNotExist()는 필드가 없을 때도 null일 때도 똑같이 통과해서,
+    // 직렬화 설정이 null 필드를 생략하도록 바뀌어도 알아채지 못한다.
 
     @Test
     void findPage_withNoSavedTrips_returnsEmptyListAndNullCursor() throws Exception {
         mockMvc.perform(listRequest(DEVICE_A, null, null))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isEmpty())
-                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
     }
 
     @Test
@@ -243,7 +249,7 @@ class SavedTripApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.items[2].savedTripId").value("t1"))
                 .andExpect(jsonPath("$.items[0].regionName").value("경북"))
                 .andExpect(jsonPath("$.items[0].courseId").value(courseId))
-                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
     }
 
     /**
@@ -307,7 +313,7 @@ class SavedTripApiTest extends IntegrationTestBase {
         mockMvc.perform(listRequest(DEVICE_A, null, 2))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(2))
-                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
     }
 
     /** 다른 기기의 저장 항목은 목록에 섞이지 않는다. 소유자 조건은 쿼리에 있다. (AGENTS.md §1) */
