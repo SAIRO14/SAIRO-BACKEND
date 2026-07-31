@@ -19,6 +19,8 @@ import static org.mockito.Mockito.when;
  */
 class CourseServiceTest {
 
+    private static final String DEVICE = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+
     /**
      * share_id 재시도가 소진되면 500 SHARE_CREATION_FAILED로 나가야 한다.
      *
@@ -33,7 +35,7 @@ class CourseServiceTest {
         CourseRepository courseRepository = mock(CourseRepository.class);
         SharedCourseRepository sharedCourseRepository = mock(SharedCourseRepository.class);
 
-        when(courseRepository.findCourseDataById("course-1"))
+        when(courseRepository.findCourseDataByIdAndDeviceId("course-1", DEVICE))
                 .thenReturn(Optional.of("{\"regionName\":\"제주도\",\"day1\":[],\"day2\":[]}"));
         when(sharedCourseRepository.save(any(), any()))
                 .thenThrow(new IllegalStateException("공유 ID를 5회 시도 안에 만들지 못했습니다."));
@@ -41,23 +43,23 @@ class CourseServiceTest {
         CourseService service = new CourseService(
                 mock(SpotRepository.class), courseRepository, sharedCourseRepository, new ObjectMapper());
 
-        assertThatThrownBy(() -> service.shareCourse("course-1"))
+        assertThatThrownBy(() -> service.shareCourse(DEVICE, "course-1"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.SHARE_CREATION_FAILED));
     }
 
-    // 코스가 없으면 공유 실패가 아니라 404다. 위 catch가 이걸 삼키면 안 된다.
+    // 코스가 없거나 남의 코스면 공유 실패가 아니라 404다. 위 catch가 이걸 삼키면 안 된다.
     @Test
     void shareCourse_withUnknownCourseId_throwsCourseNotFound() {
         CourseRepository courseRepository = mock(CourseRepository.class);
-        when(courseRepository.findCourseDataById("nope")).thenReturn(Optional.empty());
+        when(courseRepository.findCourseDataByIdAndDeviceId("nope", DEVICE)).thenReturn(Optional.empty());
 
         CourseService service = new CourseService(
                 mock(SpotRepository.class), courseRepository, mock(SharedCourseRepository.class),
                 new ObjectMapper());
 
-        assertThatThrownBy(() -> service.shareCourse("nope"))
+        assertThatThrownBy(() -> service.shareCourse(DEVICE, "nope"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.COURSE_NOT_FOUND));

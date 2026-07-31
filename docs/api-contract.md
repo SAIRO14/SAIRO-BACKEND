@@ -141,6 +141,13 @@ OpenAPI에는 `SwaggerConfig`가 헤더 파라미터와 `DEVICE_ID_*` 400 응답
 **남의 리소스에 접근하면 403이 아니라 404로 답한다.** 403은 "그 ID가 존재한다"는 사실을
 알려주기 때문이다. `SAVED_TRIP_FORBIDDEN`이 404 상태를 갖는 이유다.
 
+소유자가 있는 리소스는 **코스**(`courses.device_id`)와 **저장 여행지**(`saved_trips.device_id`)다.
+코스를 만들면 그 기기가 소유자가 되고, 공유 생성과 저장 생성은 소유자만 할 수 있다.
+남의 코스는 404 `COURSE_NOT_FOUND`다. ([ADR 0012](./decisions/0012-course-ownership.md))
+
+**공유 링크 조회(`GET /courses/shared/{shareId}`)는 소유자를 보지 않는다.**
+공유는 남에게 보내라고 만든 것이라 소유자 개념이 없다. `shareId`를 아는 사람이 볼 수 있는 사람이다.
+
 식별자를 URL 경로에 노출하지 않는다. 경로에 있으면 값을 바꿔가며 남의 데이터를 조회할 수 있다.
 
 ### 멱등성

@@ -1,5 +1,6 @@
 package com.sairo.sairo_backend.course;
 
+import com.sairo.sairo_backend.common.DeviceId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -29,7 +30,8 @@ public class CourseController {
                     저장되는 지역명은 요청 값이 아니라 **장소에서 유도한 값**이다.
                     (`regionName: "제주"` + 장소 지역 `"제주도"` → 스냅샷에는 `"제주도"`)
 
-                    발급된 `courseId`로 공유 스냅샷을 만들 수 있다.
+                    요청한 기기가 코스의 소유자가 된다. 발급된 `courseId`로 공유 스냅샷을 만들 수 있고,
+                    저장 목록에 담을 수 있다. **둘 다 소유자만 가능하다.**
                     """
     )
     @ApiResponses({
@@ -37,8 +39,11 @@ public class CourseController {
             @ApiResponse(responseCode = "400", description = "INVALID_REQUEST / INSUFFICIENT_SPOTS — 유효한 장소가 2개 미만 / COURSE_REGION_MISMATCH — 요청 지역과 장소의 지역이 다름")
     })
     @PostMapping
-    public CourseResponse buildCourse(@Valid @RequestBody CourseRequest request) {
-        return courseService.buildCourse(request);
+    public CourseResponse buildCourse(
+            @DeviceId String deviceId,
+            @Valid @RequestBody CourseRequest request
+    ) {
+        return courseService.buildCourse(deviceId, request);
     }
 
     @Operation(
@@ -50,20 +55,24 @@ public class CourseController {
                     요청 본문은 받지 않는다. 공유할 내용은 서버가 저장한 코스에서만 가져온다.
 
                     같은 코스를 여러 번 공유해도 링크는 하나다. 중복 요청에는 같은 `shareId`를 반환한다.
+
+                    **자기가 만든 코스만 공유할 수 있다.** 남의 코스는 없는 것과 같게 404다.
+                    만들어진 공유 링크의 조회는 그대로 공개다.
                     """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "공유 스냅샷 생성됨 (이미 공유된 코스면 기존 링크)"),
-            @ApiResponse(responseCode = "404", description = "COURSE_NOT_FOUND — 해당 코스가 없음"),
+            @ApiResponse(responseCode = "404", description = "COURSE_NOT_FOUND — 해당 코스가 없거나 다른 기기의 코스임"),
             @ApiResponse(responseCode = "500", description = "SHARE_CREATION_FAILED — 스냅샷 저장 실패")
     })
     @PostMapping("/{courseId}/share")
     @ResponseStatus(HttpStatus.CREATED)
     public ShareCourseResponse shareCourse(
+            @DeviceId String deviceId,
             @Parameter(description = "공유할 코스 ID", required = true, example = "8f14e45f-ea8d-4f4a-9c1b-2c3d4e5f6a7b")
             @PathVariable String courseId
     ) {
-        return courseService.shareCourse(courseId);
+        return courseService.shareCourse(deviceId, courseId);
     }
 
     @Operation(

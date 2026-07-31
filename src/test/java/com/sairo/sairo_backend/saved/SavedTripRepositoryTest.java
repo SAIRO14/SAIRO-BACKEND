@@ -38,8 +38,8 @@ class SavedTripRepositoryTest extends IntegrationTestBase {
 
         courseId = UUID.randomUUID().toString();
         jdbcTemplate.update(
-                "INSERT INTO courses (course_id, course_data) VALUES (?, ?::jsonb)",
-                courseId, """
+                "INSERT INTO courses (course_id, device_id, course_data) VALUES (?, ?, ?::jsonb)",
+                courseId, DEVICE, """
                         {"regionName":"제주도","day1":[],"day2":[]}
                         """);
     }

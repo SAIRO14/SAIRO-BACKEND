@@ -16,18 +16,27 @@ public class CourseRepository {
 
     private final JdbcTemplate jdbcTemplate;
 
-    public void save(String courseId, String courseDataJson) {
+    public void save(String courseId, String deviceId, String courseDataJson) {
         jdbcTemplate.update(
-                "INSERT INTO courses (course_id, course_data) VALUES (?, ?::jsonb)",
-                courseId, courseDataJson
+                "INSERT INTO courses (course_id, device_id, course_data) VALUES (?, ?, ?::jsonb)",
+                courseId, deviceId, courseDataJson
         );
     }
 
-    public Optional<String> findCourseDataById(String courseId) {
+    /**
+     * 소유자가 만든 코스만 읽는다.
+     *
+     * <p><b>소유자 조건을 쿼리에 넣는다.</b> 애플리케이션 코드에서 걸러내지 않는다.
+     * (docs/api-contract.md §4, ADR 0012)
+     *
+     * <p>소유자가 없는 옛 행({@code device_id IS NULL})은 어떤 기기로도 걸리지 않는다.
+     * 코스 소유자 도입 이전에 만들어진 행이며 출시 전이라 사실상 없다.
+     */
+    public Optional<String> findCourseDataByIdAndDeviceId(String courseId, String deviceId) {
         List<String> results = jdbcTemplate.query(
-                "SELECT course_data::text FROM courses WHERE course_id = ?",
+                "SELECT course_data::text FROM courses WHERE course_id = ? AND device_id = ?",
                 (rs, rowNum) -> rs.getString("course_data"),
-                courseId
+                courseId, deviceId
         );
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
