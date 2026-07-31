@@ -552,6 +552,35 @@ class SavedTripApiTest extends IntegrationTestBase {
     }
 
     /**
+     * 빈 값도 400이다. 커서와 다르다.
+     *
+     * <p>커서는 빈 값을 "주지 않은 것"으로 보고 첫 페이지를 준다(§5). 생략이 유효한 요청이기
+     * 때문이다. 해제는 지울 대상 없이 성립하지 않으므로 생략도 빈 값도 요청이 되지 않는다.
+     */
+    @Test
+    void delete_withBlankSavedTripId_returns400() throws Exception {
+        mockMvc.perform(deleteRequest(DEVICE_A, ""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    /**
+     * v4가 아닌 UUID도 400이다.
+     *
+     * <p>{@code IdFormat}은 버전 자리(4)와 IETF variant(8·9·a·b)까지 본다.
+     * 형태만 UUID면 통과시키면 그 절반이 고정되지 않는다. 아래는 v1이다.
+     *
+     * <p>서버가 발급한 적 없는 형식이므로 지울 것도 없지만, 204로 넘기면 대문자와 같은 문제가
+     * 된다 — 지워지지 않은 채 성공이 나간다.
+     */
+    @Test
+    void delete_withNonV4Uuid_returns400() throws Exception {
+        mockMvc.perform(deleteRequest(DEVICE_A, "3f2a1b4c-5d6e-1f70-8a9b-0c1d2e3f4a5b"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    /**
      * 대문자 UUID는 204가 아니라 400이다.
      *
      * <p>{@code saved_trips.saved_trip_id}는 TEXT라 조회가 대소문자를 구분한다. 통과시키면
@@ -583,7 +612,6 @@ class SavedTripApiTest extends IntegrationTestBase {
                 .header("X-Device-Id", deviceId)
                 .param("savedTripId", savedTripId);
     }
-
 
     /** 커서를 따라 끝까지 읽고 나온 순서대로 저장 항목 ID를 모은다. */
     private List<String> readAllIdsByPaging(String deviceId, int size) throws Exception {
@@ -640,12 +668,6 @@ class SavedTripApiTest extends IntegrationTestBase {
     }
 
     /**
-     * 저장 행을 직접 넣는다.
-     *
-     * <p>API로는 저장 시각과 ID를 정할 수 없어 정렬·커서 경계를 만들 수 없다.
-     * 지문은 유니크 인덱스에만 걸리므로 행마다 다르게 준다.
-     */
-    /**
      * ID를 서버가 발급하는 형식(소문자 UUID v4)으로 넣고 그 값을 돌려준다.
      *
      * <p>해제는 이 ID를 쿼리 파라미터로 받아 형식을 검증하므로, 정렬 테스트가 쓰는
@@ -658,6 +680,12 @@ class SavedTripApiTest extends IntegrationTestBase {
         return savedTripId;
     }
 
+    /**
+     * 저장 행을 직접 넣는다.
+     *
+     * <p>API로는 저장 시각과 ID를 정할 수 없어 정렬·커서 경계를 만들 수 없다.
+     * 지문은 유니크 인덱스에만 걸리므로 행마다 다르게 준다.
+     */
     private void insertSavedTrip(String savedTripId, String deviceId, String courseId,
                                  String regionKey, LocalDateTime createdAt) {
         jdbcTemplate.update("""
