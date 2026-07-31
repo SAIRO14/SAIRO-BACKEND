@@ -87,9 +87,13 @@ Swagger의 각 엔드포인트에도 발생 가능한 코드가 적혀 있다.
 | 저장 여행지 | `SAVED_TRIP_NOT_FOUND` `SAVED_TRIP_CONFLICT` `SAVED_TRIP_FORBIDDEN` |
 | 외부 연동 | `EXTERNAL_API_FAILED` |
 
-`SAVED_TRIP_NOT_FOUND` `SAVED_TRIP_CONFLICT` `SAVED_TRIP_FORBIDDEN` 셋은 정의만 되어 있고
-아직 어느 엔드포인트도 던지지 않는다. 셋 다 이유는 §4에 있다 — 앞은 멱등성,
-뒤 둘은 저장 해제가 남의 항목과 없는 항목을 응답으로 구분하지 않기 때문이다.
+저장 여행지의 세 코드는 정의만 되어 있고 아직 어느 엔드포인트도 던지지 않는다.
+**이유는 코드마다 다르다.** 셋 다 근거는 §4에 있다.
+
+- `SAVED_TRIP_CONFLICT` — **저장 생성**이 멱등이라 충돌로 볼 상황 자체가 정의되지 않는다.
+  같은 내용을 다시 저장하면 기존 항목을 그대로 반환한다.
+- `SAVED_TRIP_NOT_FOUND` — **저장 해제**가 멱등이라 이미 없는 항목을 지워도 204다.
+- `SAVED_TRIP_FORBIDDEN` — **저장 해제**가 남의 항목을 없는 항목과 구분하지 않아 이때도 204다.
 
 ### 코드를 새로 만드는 기준
 
