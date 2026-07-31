@@ -225,7 +225,7 @@ class CourseApiTest extends IntegrationTestBase {
      * 코스는 실재하므로 거짓말이다.
      */
     @Test
-    void shareCourse_withUppercaseCourseIdOfExistingCourse_returns400NotFound() throws Exception {
+    void shareCourse_withUppercaseCourseIdOfExistingCourse_returns400() throws Exception {
         String courseId = createCourse();
 
         mockMvc.perform(post("/courses/" + courseId.toUpperCase(Locale.ROOT) + "/share")

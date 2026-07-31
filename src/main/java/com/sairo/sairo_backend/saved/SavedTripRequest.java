@@ -9,9 +9,9 @@ public record SavedTripRequest(
         // 서버가 저장해둔 코스만 저장할 수 있다. 코스 내용을 본문으로 받지 않는 이유는
         // 공유 생성과 같다 — 서버가 만들지 않은 코스가 저장 목록에 들어오면 안 된다.
         //
-        // 형식을 검증하는 이유는 이 값이 **본문**에 있기 때문이다. 경로의 리소스 ID는
-        // 형식을 보지 않고 404로 답하지만(api-contract.md §2), 본문 값은 Bean Validation으로
-        // 400을 낸다. 형식이 소문자 UUID v4인 이유와 대문자를 거절하는 이유는 IdFormat에 있다.
+        // 대문자나 비-v4 UUID를 통과시키면 TEXT 컬럼 조회가 빗나가, 실재하는 코스를 두고
+        // COURSE_NOT_FOUND로 답할 수 있으므로 검증한다. 값의 위치가 아니라 거짓 응답 가능성이
+        // 기준이다. (api-contract.md §2, ADR 0013)
         @NotBlank
         @Pattern(
                 regexp = IdFormat.UUID_V4,

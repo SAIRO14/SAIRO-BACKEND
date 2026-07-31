@@ -4,13 +4,15 @@ package com.sairo.sairo_backend.common;
  * 서버가 발급하는 리소스 ID의 형식.
  *
  * <p>{@code courseId}와 {@code savedTripId}는 모두 {@code UUID.randomUUID()}로 만들어지므로
- * 소문자 UUID v4다. 요청 본문이나 쿼리 파라미터에 실려 온 값을 Bean Validation으로 검증할 때 쓴다.
+ * 소문자 UUID v4다. 서버 발급 ID의 형식 검증이 필요한 자리에서 Bean Validation으로 검증할 때 쓴다.
  *
- * <p>형식을 검증하는 대상은 <b>본문과 쿼리 파라미터</b>다. 경로의 리소스 ID는 형식을 보지 않고
- * 404로 답한다. ({@code docs/api-contract.md} §2)
+ * <p>형식을 검증할지는 값의 위치가 아니라, 검증하지 않았을 때 <b>거짓 응답이 나가는지</b>로 정한다.
+ * 경로의 {@code courseId}도 대문자 UUID를 통과시키면 실재하는 코스를 두고 404로 답하므로 검증한다.
+ * ({@code docs/api-contract.md} §2, ADR 0013)
  *
  * <p>클라이언트가 만드는 {@code X-Device-Id}는 성격이 달라 여기 해당하지 않는다.
- * 그쪽은 거절하지 않고 소문자로 정규화한다. ({@link DeviceIdArgumentResolver})
+ * 대문자는 허용해 소문자로 정규화하지만, 잘못된 형식과 비-v4 UUID는 별도 정규식으로 거절한다.
+ * ({@link DeviceIdArgumentResolver})
  */
 public final class IdFormat {
 
