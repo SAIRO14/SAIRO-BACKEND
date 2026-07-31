@@ -415,6 +415,37 @@ class SavedTripApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
+    /**
+     * 커서를 받은 뒤 그 뒤의 항목이 전부 해제되면 빈 페이지가 나온다. (#54에서 미룬 케이스)
+     *
+     * <p>해제가 생기기 전에는 만들 수 없는 상태였다. 마지막 페이지에서는 커서를 주지 않으므로
+     * 커서가 가리키는 지점 뒤에는 항상 항목이 있었다.
+     *
+     * <p>빈 목록과 함께 {@code nextCursor}는 {@code null}이어야 한다. 여기서 커서를 또 주면
+     * 클라이언트가 빈 페이지를 무한히 넘긴다.
+     */
+    @Test
+    void findPage_withCursorPastEndAfterDelete_returnsEmptyPageAndNullCursor() throws Exception {
+        String courseId = insertCourse(DEVICE_A);
+        String newer = insertSavedTrip(DEVICE_A, courseId, "제주도", at(11, 0));
+        String older = insertSavedTrip(DEVICE_A, courseId, "강원", at(10, 0));
+
+        // 첫 페이지에서 최신 항목 하나만 읽고 커서를 받는다.
+        String cursor = extract(listBody(DEVICE_A, null, 1), "nextCursor");
+        assertThat(cursor).isNotEmpty();
+
+        // 그 커서가 가리키는 지점 뒤의 항목을 전부 해제한다.
+        mockMvc.perform(deleteRequest(DEVICE_A, older)).andExpect(status().isNoContent());
+
+        mockMvc.perform(listRequest(DEVICE_A, cursor, null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+
+        // 커서 앞의 항목은 그대로다. 해제가 커서 위치까지 바꾸지는 않는다.
+        assertThat(readAllIdsByPaging(DEVICE_A, 20)).containsExactly(newer);
+    }
+
     // ─── 저장 해제 (#32) ─────────────────────────────────────────────────────
     //
     // 이 엔드포인트는 무엇을 지웠는지 응답으로 알려주지 않는다. 그래서 응답만 보는 테스트는
