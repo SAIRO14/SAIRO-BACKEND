@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -55,5 +56,38 @@ class SavedTripService {
         );
 
         return SavedTripResponse.from(saved);
+    }
+
+    /**
+     * 저장 목록을 최근 저장순 한 페이지로 읽는다. (#31)
+     *
+     * <p>소유자 조건은 리포지토리 쿼리에 있다. 여기서 다시 거르지 않는다.
+     *
+     * <p>다음 페이지가 있는지 알기 위해 {@code size + 1}개를 읽는다. 별도 {@code COUNT} 쿼리를
+     * 쓰지 않는 이유는, 그 사이에 항목이 늘거나 줄면 개수와 실제 페이지가 어긋나기 때문이다.
+     * 더 읽힌 한 행은 응답에서 잘라내고 "다음 페이지 있음"의 근거로만 쓴다.
+     *
+     * <p>목록은 {@code saved_trips} 행만 읽고 코스 스냅샷은 건드리지 않는다. 코스 내용은
+     * 항목을 눌렀을 때 코스 조회로 가져간다. 그래서 이 경로에는 역직렬화가 없고,
+     * 항목 하나가 깨져 목록 전체가 실패하는 경우도 없다. ({@code docs/api-contract.md} §6)
+     */
+    SavedTripListResponse findPage(String deviceId, String encodedCursor, int size) {
+        // 비어 있는 커서는 없는 것과 같게 다룬다. 클라이언트가 null 커서를 빈 문자열로
+        // 직렬화하는 일이 흔한데, 그때 첫 페이지 요청이 400이 되면 목록을 시작할 수 없다.
+        // 디바이스 헤더와 같은 판단이다. (docs/api-contract.md §4)
+        // §5가 막으려는 "조용히 첫 페이지 주기"에는 해당하지 않는다. 커서를 준 적이 없는 요청이다.
+        boolean firstPage = encodedCursor == null || encodedCursor.isBlank();
+        SavedTripCursor cursor = firstPage ? null : SavedTripCursor.decode(encodedCursor);
+
+        List<SavedTrip> rows = savedTripRepository.findPage(deviceId, cursor, size + 1);
+
+        boolean hasNext = rows.size() > size;
+        List<SavedTrip> page = hasNext ? rows.subList(0, size) : rows;
+
+        return new SavedTripListResponse(
+                page.stream().map(SavedTripResponse::from).toList(),
+                // hasNext가 참이면 size + 1개를 읽었다는 뜻이라 page는 비어 있지 않다.
+                hasNext ? SavedTripCursor.from(page.get(page.size() - 1)).encode() : null
+        );
     }
 }

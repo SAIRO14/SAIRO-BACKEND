@@ -5,6 +5,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Timestamp;
+import java.util.List;
+
 /**
  * 저장 여행지 저장소.
  *
@@ -52,6 +55,53 @@ class SavedTripRepository {
                 """,
                 ROW_MAPPER,
                 savedTripId, deviceId, courseId, regionKey, courseFingerprint
+        );
+    }
+
+    /**
+     * 한 사용자의 저장 목록을 최근 저장순으로 읽는다.
+     *
+     * <p><b>소유자 조건은 쿼리에 있다.</b> 전부 읽어 애플리케이션에서 거르지 않는다.
+     * 거르는 코드는 빠뜨리기 쉽고, 빠뜨린 순간 남의 저장 목록이 그대로 나간다. (AGENTS.md §1)
+     *
+     * <p>정렬 키는 {@code (created_at DESC, saved_trip_id DESC)}이고
+     * {@code saved_trips_device_created_idx}가 그대로 이 순서다.
+     *
+     * <p>커서 비교에 행 값 비교 {@code (created_at, saved_trip_id) < (?, ?)}를 쓴다.
+     * {@code created_at < ? OR (created_at = ? AND saved_trip_id < ?)}로 풀어 쓰면 같은 뜻이지만
+     * 플래너가 인덱스를 한 번에 타지 못한다.
+     *
+     * <p>첫 페이지와 다음 페이지의 SQL을 나눈 것도 같은 이유다. {@code ? IS NULL OR ...}로 합치면
+     * 첫 페이지에서도 조건이 붙어 인덱스 스캔 범위를 좁히지 못한다.
+     *
+     * @param limit 읽을 행 수. 호출자는 다음 페이지 유무를 알기 위해 필요한 수보다 하나 더 요청한다.
+     */
+    List<SavedTrip> findPage(String deviceId, SavedTripCursor cursor, int limit) {
+        if (cursor == null) {
+            return jdbcTemplate.query(
+                    """
+                    SELECT saved_trip_id, course_id, region_key, created_at
+                    FROM saved_trips
+                    WHERE device_id = ?
+                    ORDER BY created_at DESC, saved_trip_id DESC
+                    LIMIT ?
+                    """,
+                    ROW_MAPPER,
+                    deviceId, limit
+            );
+        }
+
+        return jdbcTemplate.query(
+                """
+                SELECT saved_trip_id, course_id, region_key, created_at
+                FROM saved_trips
+                WHERE device_id = ?
+                  AND (created_at, saved_trip_id) < (?, ?)
+                ORDER BY created_at DESC, saved_trip_id DESC
+                LIMIT ?
+                """,
+                ROW_MAPPER,
+                deviceId, Timestamp.valueOf(cursor.createdAt()), cursor.savedTripId(), limit
         );
     }
 }

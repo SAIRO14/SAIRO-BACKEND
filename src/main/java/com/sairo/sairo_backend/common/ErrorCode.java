@@ -22,6 +22,15 @@ public enum ErrorCode {
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 리소스를 찾을 수 없습니다.", false),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "요청을 완료하지 못했어요.", true),
 
+    /**
+     * 목록 커서를 읽을 수 없는 경우. {@code INVALID_REQUEST}와 나누는 이유는 복구 방법이 달라서다.
+     * 커서를 버리고 첫 페이지부터 다시 읽으면 되므로 클라이언트가 이 코드로 분기할 수 있어야 한다.
+     *
+     * <p>커서 페이지네이션은 도메인이 아니라 전역 규칙이므로 여기 공통에 둔다.
+     * ({@code docs/api-contract.md} §5)
+     */
+    INVALID_CURSOR(HttpStatus.BAD_REQUEST, "잘못된 커서입니다.", false),
+
     // ─── 프로토콜 수준 오류 ──────────────────────────────────────────────────
     // 표준 HTTP 의미를 유지한다. 400으로 뭉뚱그리면 프록시와 클라이언트가 원인을 구분할 수 없다.
     ENDPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 경로입니다.", false),
