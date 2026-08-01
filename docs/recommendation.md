@@ -83,10 +83,25 @@ LIMIT 30
 ### 지역별 장소 조회
 
 ```sql
-SELECT * FROM spots WHERE region_name ILIKE '%' || :region || '%' LIMIT 5
+SELECT * FROM spots
+WHERE region_name ILIKE '%' || :region || '%'
+  AND lat IS NOT NULL AND lng IS NOT NULL
+ORDER BY spot_id
 ```
 
-지역명 부분 일치로 장소를 최대 5개 가져온다.
+좌표가 있는 장소 전체를 가져온 뒤, **밀집 클러스터 샘플링**으로 최종 5개를 고른다.
+
+1. 반경 40km 내 이웃이 가장 많은 장소를 클러스터 중심으로 선택
+2. 중심 기준 반경 40km 이내이면서 **중심과 동일한 `region_name`**인 장소를 최대 20개 풀로 구성
+3. 풀에서 5개를 랜덤 샘플링
+
+장소가 5개 이하이면 클러스터 없이 그대로 사용한다. 풀이 20개를 넘으면 먼저 셔플한 뒤 상위 20개를 취한다. 셔플을 먼저 해야 반경 내 모든 스팟이 풀에 포함될 확률이 균등해진다.
+
+2단계에서 `region_name`을 중심 기준으로 정규화하는 이유: ILIKE 부분 일치 조회라 "제주"와 "제주도"처럼
+표기가 다른 장소가 섞일 수 있고, 셔플 후 `get(0)`이 달라지면 canonical이 호출마다 변해 카드가
+비결정적으로 사라지는 문제가 생긴다. 풀 구성 시점에 미리 정규화하면 셔플은 장소 조합에만 영향을 준다.
+
+랜덤 샘플링이라 같은 지역을 추천해도 매번 다른 스팟 조합이 나온다.
 
 장소가 **2개 미만**인 지역은 추천 대상에서 제외한다.
 대표 장소는 최대 2개를 미리보기로 제공한다.
@@ -96,6 +111,7 @@ SELECT * FROM spots WHERE region_name ILIKE '%' || :region || '%' LIMIT 5
 `reason`(분위기 태그 기반 문구), `saved`(저장 여부, 현재 항상 false), `previewSpots`(최대 2개)를 담는다.
 
 **한계** — 부분 일치라 의도하지 않은 지역이 걸릴 수 있다.
+좌표 없는 장소는 풀에 포함되지 않아 조회 결과에서 제외된다.
 `reason`은 분위기 태그에서 하나를 골라 만들므로 모든 지역 카드가 같은 이유 문구를 가진다.
 
 ## 3. 코스 생성
@@ -154,6 +170,8 @@ SELECT * FROM spots WHERE region_name ILIKE '%' || :region || '%' LIMIT 5
 | 유사 사진 검색 수 | 30 | `TasteAnalysisService.SIMILAR_PHOTO_LIMIT` |
 | 추천 지역 수 | 3 | `TasteAnalysisService.TOP_REGION_COUNT` |
 | 지역별 장소 수 | 5 | `TasteAnalysisService.SPOTS_PER_REGION` |
+| 클러스터 반경 | 40km | `TasteAnalysisService.CLUSTER_RADIUS_KM` |
+| 클러스터 풀 크기 | 20 | `TasteAnalysisService.CLUSTER_POOL_SIZE` |
 | 지역 카드 최소 장소 수 | 2 | `TasteAnalysisService.MIN_SPOTS_FOR_REGION` |
 | 대표 장소 미리보기 수 | 2 | `TasteAnalysisService.PREVIEW_SPOT_COUNT` |
 | 분위기 태그 후보 수 | 5 | `parseMoodTags` 내부 |

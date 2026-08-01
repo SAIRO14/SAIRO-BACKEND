@@ -152,16 +152,16 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
     // 5개 지역 모두 장소를 넣어 top 3 선정이 비결정적이어도 카드가 만들어지도록 한다.
     @Test
     void recommendations_withSpotsInDb_returnsRegionCardStructure() throws Exception {
-        insertSpot("spot-jeju-1", "한라산", "제주", "http://jeju1.jpg");
-        insertSpot("spot-jeju-2", "성산일출봉", "제주", "http://jeju2.jpg");
-        insertSpot("spot-gangwon-1", "설악산", "강원", "http://gw1.jpg");
-        insertSpot("spot-gangwon-2", "남이섬", "강원", "http://gw2.jpg");
-        insertSpot("spot-gyeongju-1", "불국사", "경주", "http://gj1.jpg");
-        insertSpot("spot-gyeongju-2", "첨성대", "경주", "http://gj2.jpg");
-        insertSpot("spot-jeonbuk-1", "전주한옥마을", "전북", "http://jb1.jpg");
-        insertSpot("spot-jeonbuk-2", "마이산", "전북", "http://jb2.jpg");
-        insertSpot("spot-chungnam-1", "서해안", "충남", "http://cn1.jpg");
-        insertSpot("spot-chungnam-2", "태안", "충남", "http://cn2.jpg");
+        insertSpot("spot-jeju-1", "한라산", "제주", "http://jeju1.jpg", 33.36, 126.53);
+        insertSpot("spot-jeju-2", "성산일출봉", "제주", "http://jeju2.jpg", 33.46, 126.94);
+        insertSpot("spot-gangwon-1", "설악산", "강원", "http://gw1.jpg", 38.12, 128.47);
+        insertSpot("spot-gangwon-2", "남이섬", "강원", "http://gw2.jpg", 37.79, 127.52);
+        insertSpot("spot-gyeongju-1", "불국사", "경주", "http://gj1.jpg", 35.79, 129.33);
+        insertSpot("spot-gyeongju-2", "첨성대", "경주", "http://gj2.jpg", 35.84, 129.22);
+        insertSpot("spot-jeonbuk-1", "전주한옥마을", "전북", "http://jb1.jpg", 35.82, 127.15);
+        insertSpot("spot-jeonbuk-2", "마이산", "전북", "http://jb2.jpg", 35.74, 127.39);
+        insertSpot("spot-chungnam-1", "서해안", "충남", "http://cn1.jpg", 36.55, 126.60);
+        insertSpot("spot-chungnam-2", "태안", "충남", "http://cn2.jpg", 36.74, 126.30);
 
         String analysisId = extractAnalysisId(
                 mockMvc.perform(post("/taste-analysis")
@@ -183,6 +183,41 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.regions[0].previewSpots[0].name").isNotEmpty());
     }
 
+    // ILIKE 부분 일치로 region_name이 "제주"/"제주도"로 혼재하는 6개 스팟(>SPOTS_PER_REGION)이 있을 때
+    // 클러스터 샘플링 후 셔플 결과와 무관하게 카드가 항상 반환되어야 한다.
+    // 수정 전: 셔플 후 get(0)이 "제주도" 스팟이 되면 consistent가 1개 → 카드 소멸
+    // 수정 후: 풀 구성 시 center의 region_name("제주")으로 미리 정규화 → 카드 항상 존재
+    @Test
+    void recommendations_withMixedRegionNamesInCluster_alwaysReturnsCard() throws Exception {
+        jdbcTemplate.update("DELETE FROM photos");
+        for (int i = 1; i <= 5; i++) {
+            insertPhoto("px" + i, "제주" + i, "http://px" + i + ".jpg", "제주", "바다");
+        }
+        // 5개("제주") + 1개("제주도") = 6 > SPOTS_PER_REGION(5) → 클러스터링 동작
+        // 모두 한라산 기준 40km 이내. 밀도 최고 중심은 sj1(제주)이 선택된다.
+        insertSpot("sj1", "한라산", "제주", "http://s1.jpg", 33.36, 126.53);
+        insertSpot("sj2", "중문", "제주", "http://s2.jpg", 33.25, 126.41);
+        insertSpot("sj3", "협재", "제주", "http://s3.jpg", 33.39, 126.24);
+        insertSpot("sj4", "서귀포", "제주", "http://s4.jpg", 33.25, 126.56);
+        insertSpot("sj5", "제주시", "제주", "http://s5.jpg", 33.50, 126.53);
+        insertSpot("sjd1", "성산일출봉", "제주도", "http://sd1.jpg", 33.46, 126.94);
+
+        String analysisId = extractAnalysisId(
+                mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["px1","px2","px3","px4","px5"]}
+                                """))
+                        .andExpect(status().isOk())
+                        .andReturn()
+        );
+
+        mockMvc.perform(get("/recommendations").param("analysisId", analysisId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.regions[0].regionName").value("제주"))
+                .andExpect(jsonPath("$.regions[0].previewSpots").isArray());
+    }
+
     // 없거나 만료된 analysisId는 리소스 부재이므로 404다. (docs/api-contract.md 상태 코드)
     @Test
     void recommendations_withInvalidAnalysisId_returns404() throws Exception {
@@ -197,10 +232,10 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
         return body.split("\"analysisId\":\"")[1].split("\"")[0];
     }
 
-    private void insertSpot(String spotId, String name, String regionName, String imageUrl) {
+    private void insertSpot(String spotId, String name, String regionName, String imageUrl, double lat, double lng) {
         jdbcTemplate.update(
-                "INSERT INTO spots (spot_id, name, region_name, image_url) VALUES (?, ?, ?, ?)",
-                spotId, name, regionName, imageUrl
+                "INSERT INTO spots (spot_id, name, region_name, image_url, lat, lng) VALUES (?, ?, ?, ?, ?, ?)",
+                spotId, name, regionName, imageUrl, lat, lng
         );
     }
 
