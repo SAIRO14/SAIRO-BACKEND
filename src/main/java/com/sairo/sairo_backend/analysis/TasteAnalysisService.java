@@ -106,6 +106,9 @@ public class TasteAnalysisService {
      *
      * <p>스팟 수가 SPOTS_PER_REGION 이하이면 클러스터 없이 그대로 반환한다.
      *
+     * <p>풀이 CLUSTER_POOL_SIZE를 넘으면 셔플 후 상위 CLUSTER_POOL_SIZE개를 취한다.
+     * 셔플을 먼저 해야 반경 내 모든 스팟이 풀에 포함될 확률이 균등해진다.
+     *
      * <p>ponytail: 밀집 중심 탐색이 O(n²). 지역당 스팟 수가 수백 이하면 문제없다.
      * 데이터가 대폭 늘면 DB 쪽 공간 인덱스(PostGIS ST_DWithin)로 교체한다.
      */
@@ -124,11 +127,11 @@ public class TasteAnalysisService {
                 .filter(s -> distanceKm(center, s) <= CLUSTER_RADIUS_KM)
                 .collect(Collectors.toCollection(ArrayList::new));
 
+        Collections.shuffle(pool);
         if (pool.size() > CLUSTER_POOL_SIZE) {
             pool = new ArrayList<>(pool.subList(0, CLUSTER_POOL_SIZE));
         }
 
-        Collections.shuffle(pool);
         return pool.subList(0, Math.min(SPOTS_PER_REGION, pool.size()));
     }
 
