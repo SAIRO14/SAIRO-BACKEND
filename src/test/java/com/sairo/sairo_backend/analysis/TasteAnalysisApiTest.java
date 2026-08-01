@@ -152,16 +152,16 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
     // 5개 지역 모두 장소를 넣어 top 3 선정이 비결정적이어도 카드가 만들어지도록 한다.
     @Test
     void recommendations_withSpotsInDb_returnsRegionCardStructure() throws Exception {
-        insertSpot("spot-jeju-1", "한라산", "제주", "http://jeju1.jpg");
-        insertSpot("spot-jeju-2", "성산일출봉", "제주", "http://jeju2.jpg");
-        insertSpot("spot-gangwon-1", "설악산", "강원", "http://gw1.jpg");
-        insertSpot("spot-gangwon-2", "남이섬", "강원", "http://gw2.jpg");
-        insertSpot("spot-gyeongju-1", "불국사", "경주", "http://gj1.jpg");
-        insertSpot("spot-gyeongju-2", "첨성대", "경주", "http://gj2.jpg");
-        insertSpot("spot-jeonbuk-1", "전주한옥마을", "전북", "http://jb1.jpg");
-        insertSpot("spot-jeonbuk-2", "마이산", "전북", "http://jb2.jpg");
-        insertSpot("spot-chungnam-1", "서해안", "충남", "http://cn1.jpg");
-        insertSpot("spot-chungnam-2", "태안", "충남", "http://cn2.jpg");
+        insertSpot("spot-jeju-1", "한라산", "제주", "http://jeju1.jpg", 33.36, 126.53);
+        insertSpot("spot-jeju-2", "성산일출봉", "제주", "http://jeju2.jpg", 33.46, 126.94);
+        insertSpot("spot-gangwon-1", "설악산", "강원", "http://gw1.jpg", 38.12, 128.47);
+        insertSpot("spot-gangwon-2", "남이섬", "강원", "http://gw2.jpg", 37.79, 127.52);
+        insertSpot("spot-gyeongju-1", "불국사", "경주", "http://gj1.jpg", 35.79, 129.33);
+        insertSpot("spot-gyeongju-2", "첨성대", "경주", "http://gj2.jpg", 35.84, 129.22);
+        insertSpot("spot-jeonbuk-1", "전주한옥마을", "전북", "http://jb1.jpg", 35.82, 127.15);
+        insertSpot("spot-jeonbuk-2", "마이산", "전북", "http://jb2.jpg", 35.74, 127.39);
+        insertSpot("spot-chungnam-1", "서해안", "충남", "http://cn1.jpg", 36.55, 126.60);
+        insertSpot("spot-chungnam-2", "태안", "충남", "http://cn2.jpg", 36.74, 126.30);
 
         String analysisId = extractAnalysisId(
                 mockMvc.perform(post("/taste-analysis")
@@ -197,10 +197,10 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
         return body.split("\"analysisId\":\"")[1].split("\"")[0];
     }
 
-    private void insertSpot(String spotId, String name, String regionName, String imageUrl) {
+    private void insertSpot(String spotId, String name, String regionName, String imageUrl, double lat, double lng) {
         jdbcTemplate.update(
-                "INSERT INTO spots (spot_id, name, region_name, image_url) VALUES (?, ?, ?, ?)",
-                spotId, name, regionName, imageUrl
+                "INSERT INTO spots (spot_id, name, region_name, image_url, lat, lng) VALUES (?, ?, ?, ?, ?, ?)",
+                spotId, name, regionName, imageUrl, lat, lng
         );
     }
 

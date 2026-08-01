@@ -23,6 +23,8 @@ public class TasteAnalysisService {
     private static final int TOP_REGION_COUNT = 3;
     private static final int MIN_SPOTS_FOR_REGION = 2;
     private static final int PREVIEW_SPOT_COUNT = 2;
+    private static final double CLUSTER_RADIUS_KM = 40.0;
+    private static final int CLUSTER_POOL_SIZE = 20;
 
     private final PhotoRepository photoRepository;
     private final PhotoEmbeddingRepository embeddingRepository;
@@ -65,7 +67,7 @@ public class TasteAnalysisService {
         String reason = MoodReasonMapper.from(entry.moodTags());
 
         List<RecommendationResponse.RegionCard> regions = topRegions.stream()
-                .map(region -> Map.entry(region, spotRepository.findByRegionContaining(region, SPOTS_PER_REGION)))
+                .map(region -> Map.entry(region, selectClusteredSpots(region)))
                 .filter(e -> !e.getValue().isEmpty())
                 .filter(e -> e.getValue().get(0).getRegionName() != null)
                 .map(e -> {
@@ -94,6 +96,51 @@ public class TasteAnalysisService {
                 .map(s -> new RecommendationResponse.PreviewSpot(s.getSpotId(), s.getName()))
                 .collect(Collectors.toList());
         return new RecommendationResponse.RegionCard(region, region, imageUrl, reason, false, previewSpots);
+    }
+
+    /**
+     * 밀집 클러스터 중심에서 반경 40km 이내 스팟 풀을 구성하고, 그 중 SPOTS_PER_REGION개를 랜덤 샘플링한다.
+     *
+     * <p>단순 LIMIT 쿼리는 spot_id 순서에 따라 지역 내에서 수백 km 떨어진 스팟이 묶일 수 있다.
+     * 클러스터 샘플링을 쓰면 반경 40km 안에서만 스팟이 선택된다.
+     *
+     * <p>스팟 수가 SPOTS_PER_REGION 이하이면 클러스터 없이 그대로 반환한다.
+     *
+     * <p>ponytail: 밀집 중심 탐색이 O(n²). 지역당 스팟 수가 수백 이하면 문제없다.
+     * 데이터가 대폭 늘면 DB 쪽 공간 인덱스(PostGIS ST_DWithin)로 교체한다.
+     */
+    private List<Spot> selectClusteredSpots(String region) {
+        List<Spot> withCoords = spotRepository.findAllByRegionContainingWithCoords(region);
+        if (withCoords.size() <= SPOTS_PER_REGION) {
+            return withCoords;
+        }
+
+        Spot center = withCoords.stream()
+                .max(Comparator.comparingLong(s ->
+                        withCoords.stream().filter(o -> distanceKm(s, o) <= CLUSTER_RADIUS_KM).count()))
+                .orElseThrow();
+
+        List<Spot> pool = withCoords.stream()
+                .filter(s -> distanceKm(center, s) <= CLUSTER_RADIUS_KM)
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        if (pool.size() > CLUSTER_POOL_SIZE) {
+            pool = new ArrayList<>(pool.subList(0, CLUSTER_POOL_SIZE));
+        }
+
+        Collections.shuffle(pool);
+        return pool.subList(0, Math.min(SPOTS_PER_REGION, pool.size()));
+    }
+
+    private double distanceKm(Spot a, Spot b) {
+        final double R = 6371.0;
+        double dLat = Math.toRadians(b.getLat() - a.getLat());
+        double dLng = Math.toRadians(b.getLng() - a.getLng());
+        double sinDLat = Math.sin(dLat / 2);
+        double sinDLng = Math.sin(dLng / 2);
+        double h = sinDLat * sinDLat
+                + Math.cos(Math.toRadians(a.getLat())) * Math.cos(Math.toRadians(b.getLat())) * sinDLng * sinDLng;
+        return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
     }
 
     // location 형식: "경상북도 안동", "제주도" 등 — 첫 번째 공백 이전 단어가 광역 지자체명
