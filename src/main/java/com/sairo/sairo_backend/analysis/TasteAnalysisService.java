@@ -123,8 +123,12 @@ public class TasteAnalysisService {
                         withCoords.stream().filter(o -> distanceKm(s, o) <= CLUSTER_RADIUS_KM).count()))
                 .orElseThrow();
 
+        // center의 region_name으로 풀을 미리 정규화한다. 셔플 전에 확정해야
+        // get(0).getRegionName()이 호출마다 달라지는 비결정성을 막을 수 있다.
+        String centerRegion = center.getRegionName();
         List<Spot> pool = withCoords.stream()
                 .filter(s -> distanceKm(center, s) <= CLUSTER_RADIUS_KM)
+                .filter(s -> centerRegion.equals(s.getRegionName()))
                 .collect(Collectors.toCollection(ArrayList::new));
 
         Collections.shuffle(pool);

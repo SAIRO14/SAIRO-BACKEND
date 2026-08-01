@@ -183,6 +183,41 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.regions[0].previewSpots[0].name").isNotEmpty());
     }
 
+    // ILIKE 부분 일치로 region_name이 "제주"/"제주도"로 혼재하는 6개 스팟(>SPOTS_PER_REGION)이 있을 때
+    // 클러스터 샘플링 후 셔플 결과와 무관하게 카드가 항상 반환되어야 한다.
+    // 수정 전: 셔플 후 get(0)이 "제주도" 스팟이 되면 consistent가 1개 → 카드 소멸
+    // 수정 후: 풀 구성 시 center의 region_name("제주")으로 미리 정규화 → 카드 항상 존재
+    @Test
+    void recommendations_withMixedRegionNamesInCluster_alwaysReturnsCard() throws Exception {
+        jdbcTemplate.update("DELETE FROM photos");
+        for (int i = 1; i <= 5; i++) {
+            insertPhoto("px" + i, "제주" + i, "http://px" + i + ".jpg", "제주", "바다");
+        }
+        // 5개("제주") + 1개("제주도") = 6 > SPOTS_PER_REGION(5) → 클러스터링 동작
+        // 모두 한라산 기준 40km 이내. 밀도 최고 중심은 sj1(제주)이 선택된다.
+        insertSpot("sj1", "한라산", "제주", "http://s1.jpg", 33.36, 126.53);
+        insertSpot("sj2", "중문", "제주", "http://s2.jpg", 33.25, 126.41);
+        insertSpot("sj3", "협재", "제주", "http://s3.jpg", 33.39, 126.24);
+        insertSpot("sj4", "서귀포", "제주", "http://s4.jpg", 33.25, 126.56);
+        insertSpot("sj5", "제주시", "제주", "http://s5.jpg", 33.50, 126.53);
+        insertSpot("sjd1", "성산일출봉", "제주도", "http://sd1.jpg", 33.46, 126.94);
+
+        String analysisId = extractAnalysisId(
+                mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["px1","px2","px3","px4","px5"]}
+                                """))
+                        .andExpect(status().isOk())
+                        .andReturn()
+        );
+
+        mockMvc.perform(get("/recommendations").param("analysisId", analysisId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.regions[0].regionName").value("제주"))
+                .andExpect(jsonPath("$.regions[0].previewSpots").isArray());
+    }
+
     // 없거나 만료된 analysisId는 리소스 부재이므로 404다. (docs/api-contract.md 상태 코드)
     @Test
     void recommendations_withInvalidAnalysisId_returns404() throws Exception {
