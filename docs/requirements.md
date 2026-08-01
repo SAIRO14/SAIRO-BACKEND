@@ -102,6 +102,7 @@
 | 추천 조회 | GET | `/recommendations?analysisId={id}` | 구현됨 |
 | 장소 상세 | GET | `/places/{spotId}` | 구현됨 |
 | 코스 생성 | POST | `/courses` | 구현됨 |
+| 코스 조회 | GET | `/courses/{courseId}` | 구현됨 |
 | 코스 공유 | POST | `/courses/{courseId}/share` | 구현됨 |
 | 공유 조회 | GET | `/courses/shared/{shareId}` | 구현됨 |
 | 저장 생성 | POST | `/saved-trips` | 구현됨 |
