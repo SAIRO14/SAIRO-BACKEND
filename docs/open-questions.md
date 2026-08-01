@@ -22,30 +22,6 @@
 
 ---
 
-## Q-02. 공유 링크 만료 기간
-
-**상태:** 열림
-**영향:** `shared_courses` 스키마, 공유 조회 오류 처리, 정리 배치 필요 여부
-
-공유 코스를 얼마나 보관할지 정해지지 않았다.
-
-정해야 하는 것:
-
-- 만료 기간 (무기한 / N일)
-- 만료분 정리 방식. `courses`도 함께 늘어나므로 같이 정한다.
-- **저장된 코스를 어떻게 다룰지.** `saved_trips.course_id`가 `courses`를 참조하며
-  `ON DELETE` 절이 없어 삭제가 막힌다.
-- **저장 생성의 FK 레이스.** `SavedTripService.save`는 코스 조회와 삽입이 별개 auto-commit이라,
-  그 사이에 코스가 지워지면 FK 위반이 500 `INTERNAL_ERROR`로 나간다. 원인은 "없는 코스"이므로
-  404 `COURSE_NOT_FOUND`가 맞다. 삭제 경로가 생기는 시점에 매핑을 추가해야 한다.
-
-`share_id` 충돌 시 재생성은 구현했다. (`SharedCourseRepository.save`)
-
-만료와 부재를 응답에서 구분하지 않는 것은 이미 정해졌다.
-([api-contract.md §2](./api-contract.md#2-상태-코드))
-
----
-
 ## Q-05. 지역별 최종 코스 장소 수
 
 **상태:** 열림
@@ -71,8 +47,6 @@
 - 저장소 (외부 캐시 / DB / 그 외)
 - TTL 길이
 - 만료된 분석 ID의 응답 (현재는 `ANALYSIS_NOT_FOUND` 404)
-
----
 
 ---
 
@@ -127,3 +101,4 @@
 | 코스를 서버에 저장할 것인가 | `courses` 테이블에 저장하고 공유·저장이 참조 | [ADR 0010](./decisions/0010-course-persistence.md), [data-model.md](./data-model.md) |
 | 중복 저장 판정 기준 | `UNIQUE(익명 사용자 ID, 코스 지문)`. 지문은 장소 ID를 정렬해 해시하며 순서를 넣지 않는다 | [ADR 0011](./decisions/0011-saved-trip-identity.md), [data-model.md](./data-model.md) |
 | 일부 사진 ID가 유효하지 않을 때 | 중복 제거 후 고유 장수 5 미만 → 400 / 유효 장수 5 미만 → 400, 그 외는 유효한 것으로 진행 | `TasteAnalysisService.analyze` |
+| 공유 링크 만료와 코스 정리 | MVP는 만료 없음. 정리 배치도 두지 않고 `saved_trips`의 `RESTRICT`를 의도로 유지한다 | [ADR 0014](./decisions/0014-share-link-lifetime.md), [PRD §12 #3](./PRD.md) |

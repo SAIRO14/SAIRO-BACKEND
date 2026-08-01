@@ -146,7 +146,10 @@
 | P0 | 분석 저장 | 프로세스 메모리, TTL 없음 | TTL 있는 공유 저장소로 교체 |
 | P1 | 장소 보완 | 정보 하나만 있어도 완전하다고 판단 | 결측 필드별로 TourAPI 보완 |
 | P2 | 데이터 import | 절대 경로와 DB 비밀번호 하드코딩 | CLI 인자와 환경 변수 사용 |
-| P2 | 코스 정리 | `courses`와 `shared_courses`가 계속 쌓임 | 만료·정리 정책 (→ [Q-02](./open-questions.md)) |
+
+**코스 정리는 MVP 범위 밖으로 결정했다.** `courses`와 `shared_courses`는 계속 쌓이지만
+만료도 정리 배치도 두지 않는다. 격차가 해소된 것이 아니라 감수하기로 한 것이다.
+볼륨이 늘면 다시 본다. → [ADR 0014](./decisions/0014-share-link-lifetime.md)
 
 **완료된 항목:** 오류 계약 표준화([ADR 0001](./decisions/0001-error-response-contract.md)),
 스키마 마이그레이션([ADR 0003](./decisions/0003-flyway-for-schema-migration.md)),
