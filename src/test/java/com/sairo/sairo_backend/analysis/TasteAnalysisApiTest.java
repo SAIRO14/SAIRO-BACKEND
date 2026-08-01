@@ -232,6 +232,54 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.regions[0].saved").value(true));
     }
 
+    // 사진 location("제주")과 spot region_name("제주도")이 다를 때 saved=true가 올바르게 반환되어야 한다.
+    // ILIKE 부분 일치로 검색어≠canonical인 상황에서 saved 조회가 canonical 기준으로 동작하는지 검증한다.
+    @Test
+    void recommendations_withSavedRegion_searchTermDiffersFromCanonical_returnsSavedTrue() throws Exception {
+        jdbcTemplate.update("DELETE FROM photos");
+        for (int i = 1; i <= 5; i++) {
+            insertPhoto("pq" + i, "제주" + i, "http://pq" + i + ".jpg", "제주", "바다,힐링");
+        }
+        insertSpot("jq1", "한라산", "제주도", "http://jq1.jpg");
+        insertSpot("jq2", "성산일출봉", "제주도", "http://jq2.jpg");
+
+        String deviceId = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+
+        String analysisId = extractAnalysisId(
+                mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["pq1","pq2","pq3","pq4","pq5"]}
+                                """))
+                        .andExpect(status().isOk())
+                        .andReturn()
+        );
+
+        // 코스 생성: regionName "제주", spot region_name "제주도" — "제주도".contains("제주") 검증 통과
+        String courseBody = mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", deviceId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"regionName": "제주", "spotIds": ["jq1", "jq2"]}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String courseId = courseBody.split("\"courseId\":\"")[1].split("\"")[0];
+
+        mockMvc.perform(post("/saved-trips")
+                        .header("X-Device-Id", deviceId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\": \"" + courseId + "\"}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/recommendations")
+                        .header("X-Device-Id", deviceId)
+                        .param("analysisId", analysisId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.regions[0].regionName").value("제주"))
+                .andExpect(jsonPath("$.regions[0].saved").value(true));
+    }
+
     // 없거나 만료된 analysisId는 리소스 부재이므로 404다. (docs/api-contract.md 상태 코드)
     @Test
     void recommendations_withInvalidAnalysisId_returns404() throws Exception {

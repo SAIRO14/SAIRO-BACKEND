@@ -66,8 +66,9 @@ public class TasteAnalysisService {
         List<String> topRegions = extractTopRegions(similarPhotos);
         String reason = MoodReasonMapper.from(entry.moodTags());
 
-        // 부분 일치 조회라 서로 다른 region_name 장소가 섞일 수 있다. 첫 장소 기준으로 정규화하고
-        // 이후 단계에서 canonical을 key로 쓴다. saved_trips.region_key도 canonical과 일치한다.
+        // 부분 일치 조회라 서로 다른 region_name 장소가 섞일 수 있다. 첫 장소 기준으로 정규화하되
+        // Map 키는 검색 문자열 그대로 유지한다. regionId/regionName 응답값이 검색어와 일치해야
+        // 코스 생성 검증(ILIKE 부분 일치)과 일관성을 가진다. (PR #47 참고)
         List<Map.Entry<String, List<Spot>>> regionSpots = topRegions.stream()
                 .map(region -> Map.entry(region, spotRepository.findByRegionContaining(region, SPOTS_PER_REGION)))
                 .filter(e -> !e.getValue().isEmpty())
@@ -77,19 +78,24 @@ public class TasteAnalysisService {
                     List<Spot> consistent = e.getValue().stream()
                             .filter(s -> canonical.equals(s.getRegionName()))
                             .collect(Collectors.toList());
-                    return Map.entry(canonical, consistent);
+                    return Map.entry(e.getKey(), consistent);
                 })
                 .filter(e -> e.getValue().size() >= MIN_SPOTS_FOR_REGION)
                 .collect(Collectors.toList());
 
-        // 저장 여부 일괄 조회 — 카드 수(최대 3개)만큼만 쿼리하므로 N+1 없음
-        List<String> canonicalNames = regionSpots.stream().map(Map.Entry::getKey).toList();
+        // saved 조회는 spot의 region_name(canonical)으로 해야 한다.
+        // saved_trips.region_key는 코스 생성 시 저장된 spot.region_name과 일치하고,
+        // Map 키(검색 문자열)와 다를 수 있다.
+        List<String> canonicalNames = regionSpots.stream()
+                .map(e -> e.getValue().get(0).getRegionName())
+                .toList();
         Set<String> savedKeys = deviceId
                 .map(id -> savedTripRepository.findSavedRegionKeys(id, canonicalNames))
                 .orElse(Set.of());
 
         List<RecommendationResponse.RegionCard> regions = regionSpots.stream()
-                .map(e -> buildRegionCard(e.getKey(), e.getValue(), reason, savedKeys.contains(e.getKey())))
+                .map(e -> buildRegionCard(e.getKey(), e.getValue(), reason,
+                        savedKeys.contains(e.getValue().get(0).getRegionName())))
                 .collect(Collectors.toList());
 
         return new RecommendationResponse(entry.moodTags(), regions);

@@ -95,6 +95,13 @@ SELECT * FROM spots WHERE region_name ILIKE '%' || :region || '%' LIMIT 5
 각 카드는 `regionId`(MVP에서 `regionName`과 동일), `regionName`, `imageUrl`,
 `reason`(분위기 태그 기반 문구), `saved`(X-Device-Id 헤더 기준 저장 여부, 헤더 없으면 false), `previewSpots`(최대 2개)를 담는다.
 
+`regionId`/`regionName`은 지역 집계 단계의 검색 문자열(사진 `location` 첫 단어)을 그대로 쓴다.
+코스 생성 검증이 같은 `ILIKE '%지역%'` 부분 일치를 쓰므로 검색어와 응답값이 일치해야 흐름이 이어진다.
+
+`saved` 여부는 spot의 `region_name`(canonical)으로 조회한다.
+`saved_trips.region_key`는 코스 생성 시 spot에서 꺼낸 `region_name`으로 저장되므로,
+사진 location에서 추출한 검색어가 아니라 spot의 실제 값과 맞춰야 한다.
+
 **한계** — 부분 일치라 의도하지 않은 지역이 걸릴 수 있다.
 `reason`은 분위기 태그에서 하나를 골라 만들므로 모든 지역 카드가 같은 이유 문구를 가진다.
 
