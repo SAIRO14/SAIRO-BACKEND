@@ -1,12 +1,14 @@
 package com.sairo.sairo_backend.course;
 
 import com.sairo.sairo_backend.common.DeviceId;
+import com.sairo.sairo_backend.common.IdFormat;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -58,10 +60,15 @@ public class CourseController {
 
                     **자기가 만든 코스만 공유할 수 있다.** 남의 코스는 없는 것과 같게 404다.
                     만들어진 공유 링크의 조회는 그대로 공개다.
+
+                    `courseId`는 소문자 UUID v4여야 한다. 형식이 다르면 404가 아니라 400이다.
+                    서버가 발급한 적 없는 형식을 "없는 코스"라고 답하면, 실재하는 자기 코스를
+                    두고 없다고 말하게 된다.
                     """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "공유 스냅샷 생성됨 (이미 공유된 코스면 기존 링크)"),
+            @ApiResponse(responseCode = "400", description = "INVALID_REQUEST — courseId가 소문자 UUID v4 아님"),
             @ApiResponse(responseCode = "404", description = "COURSE_NOT_FOUND — 해당 코스가 없거나 다른 기기의 코스임"),
             @ApiResponse(responseCode = "500", description = "SHARE_CREATION_FAILED — 스냅샷 저장 실패")
     })
@@ -70,7 +77,12 @@ public class CourseController {
     public ShareCourseResponse shareCourse(
             @DeviceId String deviceId,
             @Parameter(description = "공유할 코스 ID", required = true, example = "8f14e45f-ea8d-4f4a-9c1b-2c3d4e5f6a7b")
-            @PathVariable String courseId
+            // 경로에 있지만 형식을 검증한다. 대문자 UUID를 통과시키면 courses.course_id가 TEXT라
+            // 조회가 빗나가, 실재하는 자기 코스에 COURSE_NOT_FOUND 404가 나간다.
+            // 계약 §2의 기준은 경로냐 본문이냐가 아니라 "틀린 형식이 거짓 부재를 만드는가"다.
+            @PathVariable
+            @Pattern(regexp = IdFormat.UUID_V4, message = "courseId는 소문자 UUID v4 정규형이어야 합니다.")
+            String courseId
     ) {
         return courseService.shareCourse(deviceId, courseId);
     }

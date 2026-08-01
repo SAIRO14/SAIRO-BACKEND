@@ -9,6 +9,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.Locale;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -194,11 +196,46 @@ class CourseApiTest extends IntegrationTestBase {
                 .andExpect(status().isOk());
     }
 
+    // 형식은 맞지만 대상이 없는 경우다. 형식 오류(아래)와 구분한다.
     @Test
     void shareCourse_withUnknownCourseId_returns404() throws Exception {
-        mockMvc.perform(post("/courses/not-a-real-course/share").header("X-Device-Id", DEVICE_A))
+        mockMvc.perform(post("/courses/" + UUID.randomUUID() + "/share").header("X-Device-Id", DEVICE_A))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+    }
+
+    /**
+     * 경로에 있는 {@code courseId}도 형식을 검증한다. 404가 아니라 400이다.
+     *
+     * <p>계약 §2의 기준은 "경로냐 본문이냐"가 아니라 <b>"틀린 형식이 거짓 부재를 만드는가"</b>다.
+     * ({@code docs/decisions/0013-id-format-validation.md})
+     */
+    @Test
+    void shareCourse_withMalformedCourseId_returns400() throws Exception {
+        mockMvc.perform(post("/courses/not-a-real-course/share").header("X-Device-Id", DEVICE_A))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    /**
+     * 이 변경이 실제로 막는 것. 대문자 UUID로 <b>실재하는 자기 코스</b>를 공유하려 했을 때다.
+     *
+     * <p>이전에는 404 {@code COURSE_NOT_FOUND}가 나갔다. {@code courses.course_id}가 TEXT라
+     * 조회가 대소문자를 구분해 빗나가는데, 응답은 "그런 코스가 없다"고 말한다.
+     * 코스는 실재하므로 거짓말이다.
+     */
+    @Test
+    void shareCourse_withUppercaseCourseIdOfExistingCourse_returns400() throws Exception {
+        String courseId = createCourse();
+
+        mockMvc.perform(post("/courses/" + courseId.toUpperCase(Locale.ROOT) + "/share")
+                        .header("X-Device-Id", DEVICE_A))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        // 소문자로는 그대로 공유된다. 코스가 실재한다는 근거다.
+        mockMvc.perform(post("/courses/" + courseId + "/share").header("X-Device-Id", DEVICE_A))
+                .andExpect(status().isCreated());
     }
 
     // 네트워크 재시도나 연속 탭으로 같은 요청이 두 번 도착해도 링크는 하나여야 한다.

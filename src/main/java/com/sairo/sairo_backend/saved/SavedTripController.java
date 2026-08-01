@@ -1,6 +1,7 @@
 package com.sairo.sairo_backend.saved;
 
 import com.sairo.sairo_backend.common.DeviceId;
+import com.sairo.sairo_backend.common.IdFormat;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -9,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -81,5 +83,44 @@ public class SavedTripController {
             @RequestParam(defaultValue = "20") @Min(1) @Max(50) int size
     ) {
         return savedTripService.findPage(deviceId, cursor, size);
+    }
+
+    @Operation(
+            summary = "저장 해제",
+            description = """
+                    저장 목록에서 항목 하나를 뺀다. 코스 자체는 지우지 않는다.
+
+                    **지울 것이 없어도 204다.** 이미 해제한 항목을 다시 해제해도, 저장한 적 없는
+                    ID를 보내도 같은 응답이 나간다. 네트워크 재시도나 연속 탭으로 같은 요청이
+                    두 번 도착해도 안전하다.
+
+                    다른 기기의 저장 항목은 지워지지 않는다. 이때도 응답은 204다.
+                    **응답으로 남의 항목과 없는 항목을 구분하지 않는다.** 구분하면 `savedTripId`를
+                    바꿔가며 그 ID가 실재하는지 알아낼 수 있다.
+
+                    그래서 이 엔드포인트는 "지웠는지"를 알려주지 않는다. 화면을 갱신해야 하면
+                    저장 목록을 다시 조회한다.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "해제됨 (지울 항목이 없어도 204)"),
+            @ApiResponse(responseCode = "400", description = "INVALID_REQUEST — savedTripId 누락 또는 소문자 UUID v4 아님")
+    })
+    @DeleteMapping
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(
+            @DeviceId String deviceId,
+
+            // 식별자를 경로에 두지 않는다는 제약(docs/requirements.md §4)에 따라 쿼리 파라미터로 받는다.
+            // 목록 조회가 커서를 쿼리로 받는 것과 같은 판단이다.
+            @Parameter(
+                    description = "해제할 저장 항목 ID", required = true,
+                    example = "3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b"
+            )
+            @RequestParam
+            @Pattern(regexp = IdFormat.UUID_V4, message = "savedTripId는 소문자 UUID v4 정규형이어야 합니다.")
+            String savedTripId
+    ) {
+        savedTripService.delete(deviceId, savedTripId);
     }
 }

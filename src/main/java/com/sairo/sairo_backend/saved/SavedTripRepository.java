@@ -104,4 +104,27 @@ class SavedTripRepository {
                 deviceId, Timestamp.valueOf(cursor.createdAt()), cursor.savedTripId(), limit
         );
     }
+
+    /**
+     * 저장 항목 하나를 지운다. (#32)
+     *
+     * <p><b>소유자 조건은 쿼리에 있다.</b> 읽어서 소유자를 확인한 뒤 지우는 방식은 쓰지 않는다.
+     * 확인과 삭제 사이에 다른 요청이 끼면 조건이 어긋나고, 무엇보다 빠뜨리기 쉽다. (AGENTS.md §1)
+     *
+     * <p>지운 행 수를 돌려주지 않는다. 호출자가 그 값으로 분기하면 "없는 항목"과 "남의 항목"이
+     * 응답에서 갈리는데, 그러면 ID를 바꿔가며 실재 여부를 알아낼 수 있다.
+     * 404를 쓰기로 한 이유가 그대로 무너진다. ({@code docs/api-contract.md} §4)
+     *
+     * <p><b>이 {@code void}는 "응답에 담지 않는다"가 아니라 "이 정보를 존재하지 않게 한다"이다.</b>
+     * 그래서 서버 쪽 관측 수단도 함께 없앤다. 기기 ID 정규화가 바뀌는 식으로 <b>모든</b> 해제가
+     * 아무 행도 지우지 못하게 되면, 204만 나가고 서버에는 아무 신호도 남지 않는다.
+     * 매치 0건은 정상적인 재시도에서도 늘 일어나므로 한 건씩 로그로 남길 값은 아니고,
+     * 필요해지면 응답 계약은 그대로 둔 채 <b>비율</b>을 보는 메트릭으로 잡는다.
+     */
+    void deleteByIdAndDeviceId(String savedTripId, String deviceId) {
+        jdbcTemplate.update(
+                "DELETE FROM saved_trips WHERE saved_trip_id = ? AND device_id = ?",
+                savedTripId, deviceId
+        );
+    }
 }
