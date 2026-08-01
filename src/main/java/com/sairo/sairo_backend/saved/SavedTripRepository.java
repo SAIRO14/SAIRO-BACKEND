@@ -6,7 +6,11 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 저장 여행지 저장소.
@@ -15,7 +19,7 @@ import java.util.List;
  */
 @Repository
 @RequiredArgsConstructor
-class SavedTripRepository {
+public class SavedTripRepository {
 
     private static final RowMapper<SavedTrip> ROW_MAPPER = (rs, rowNum) -> new SavedTrip(
             rs.getString("saved_trip_id"),
@@ -126,5 +130,24 @@ class SavedTripRepository {
                 "DELETE FROM saved_trips WHERE saved_trip_id = ? AND device_id = ?",
                 savedTripId, deviceId
         );
+    }
+
+    /**
+     * 기기가 저장한 여행지 중 주어진 지역 키에 해당하는 것을 한 번에 조회한다.
+     *
+     * <p>추천 카드의 {@code saved} 필드를 채우기 위해 쓴다. N+1을 막기 위해 지역 목록 전체를
+     * 한 쿼리로 조회하고, 호출자가 결과 집합으로 각 카드의 저장 여부를 판정한다.
+     */
+    public Set<String> findSavedRegionKeys(String deviceId, List<String> regionKeys) {
+        if (regionKeys.isEmpty()) return Set.of();
+        String inClause = String.join(",", Collections.nCopies(regionKeys.size(), "?"));
+        List<Object> params = new ArrayList<>();
+        params.add(deviceId);
+        params.addAll(regionKeys);
+        return new HashSet<>(jdbcTemplate.queryForList(
+                "SELECT region_key FROM saved_trips WHERE device_id = ? AND region_key IN (" + inClause + ")",
+                String.class,
+                params.toArray()
+        ));
     }
 }

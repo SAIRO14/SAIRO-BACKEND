@@ -48,7 +48,8 @@ public class TasteAnalysisController {
                     분석 ID로 계산된 취향과 가까운 지역 카드를 반환한다.
                     지역 카드에는 지역명, 대표 이미지, 추천 이유, 대표 장소 최대 2개, 저장 여부가 담긴다.
                     장소가 2개 미만인 지역은 결과에서 제외된다. 0개도 정상 응답이다.
-                    저장 여부(saved)는 현재 항상 false다. 저장 여행지 구현 후 X-Device-Id 헤더 기준으로 채운다.
+                    X-Device-Id 헤더가 있으면 기기가 저장한 여행지를 조회해 각 카드의 `saved` 필드를 채운다.
+                    헤더가 없으면 `saved`는 항상 false다.
                     """
     )
     @ApiResponses({
@@ -62,6 +63,6 @@ public class TasteAnalysisController {
             @RequestParam String analysisId,
             @DeviceId Optional<String> deviceId
     ) {
-        return tasteAnalysisService.recommend(analysisId);
+        return tasteAnalysisService.recommend(analysisId, deviceId);
     }
 }

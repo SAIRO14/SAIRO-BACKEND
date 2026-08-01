@@ -93,7 +93,7 @@ SELECT * FROM spots WHERE region_name ILIKE '%' || :region || '%' LIMIT 5
 
 추천 응답은 지역 카드 배열(`regions`)로 구성된다.
 각 카드는 `regionId`(MVP에서 `regionName`과 동일), `regionName`, `imageUrl`,
-`reason`(분위기 태그 기반 문구), `saved`(저장 여부, 현재 항상 false), `previewSpots`(최대 2개)를 담는다.
+`reason`(분위기 태그 기반 문구), `saved`(X-Device-Id 헤더 기준 저장 여부, 헤더 없으면 false), `previewSpots`(최대 2개)를 담는다.
 
 **한계** — 부분 일치라 의도하지 않은 지역이 걸릴 수 있다.
 `reason`은 분위기 태그에서 하나를 골라 만들므로 모든 지역 카드가 같은 이유 문구를 가진다.

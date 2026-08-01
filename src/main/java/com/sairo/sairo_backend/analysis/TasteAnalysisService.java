@@ -5,6 +5,7 @@ import com.sairo.sairo_backend.common.ErrorCode;
 import com.sairo.sairo_backend.photo.Photo;
 import com.sairo.sairo_backend.photo.PhotoEmbeddingRepository;
 import com.sairo.sairo_backend.photo.PhotoRepository;
+import com.sairo.sairo_backend.saved.SavedTripRepository;
 import com.sairo.sairo_backend.spot.Spot;
 import com.sairo.sairo_backend.spot.SpotRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class TasteAnalysisService {
     private final PhotoEmbeddingRepository embeddingRepository;
     private final SpotRepository spotRepository;
     private final AnalysisStore analysisStore;
+    private final SavedTripRepository savedTripRepository;
 
     public TasteAnalysisResponse analyze(List<String> photoIds) {
         // 중복 ID는 사실상 더 적은 사진으로 분석하는 것과 같다. 중복 제거 후 재확인한다.
@@ -54,7 +56,7 @@ public class TasteAnalysisService {
         return new TasteAnalysisResponse(analysisId, moodTags, summary);
     }
 
-    public RecommendationResponse recommend(String analysisId) {
+    public RecommendationResponse recommend(String analysisId, Optional<String> deviceId) {
         AnalysisStore.AnalysisEntry entry = analysisStore.find(analysisId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ANALYSIS_NOT_FOUND));
 
@@ -64,26 +66,36 @@ public class TasteAnalysisService {
         List<String> topRegions = extractTopRegions(similarPhotos);
         String reason = MoodReasonMapper.from(entry.moodTags());
 
-        List<RecommendationResponse.RegionCard> regions = topRegions.stream()
+        // 부분 일치 조회라 서로 다른 region_name 장소가 섞일 수 있다. 첫 장소 기준으로 정규화하고
+        // 이후 단계에서 canonical을 key로 쓴다. saved_trips.region_key도 canonical과 일치한다.
+        List<Map.Entry<String, List<Spot>>> regionSpots = topRegions.stream()
                 .map(region -> Map.entry(region, spotRepository.findByRegionContaining(region, SPOTS_PER_REGION)))
                 .filter(e -> !e.getValue().isEmpty())
                 .filter(e -> e.getValue().get(0).getRegionName() != null)
                 .map(e -> {
-                    // 부분 일치 조회라 서로 다른 region_name 장소가 섞일 수 있다. 첫 장소 기준으로 정규화한다.
                     String canonical = e.getValue().get(0).getRegionName();
                     List<Spot> consistent = e.getValue().stream()
                             .filter(s -> canonical.equals(s.getRegionName()))
                             .collect(Collectors.toList());
-                    return Map.entry(e.getKey(), consistent);
+                    return Map.entry(canonical, consistent);
                 })
                 .filter(e -> e.getValue().size() >= MIN_SPOTS_FOR_REGION)
-                .map(e -> buildRegionCard(e.getKey(), e.getValue(), reason))
+                .collect(Collectors.toList());
+
+        // 저장 여부 일괄 조회 — 카드 수(최대 3개)만큼만 쿼리하므로 N+1 없음
+        List<String> canonicalNames = regionSpots.stream().map(Map.Entry::getKey).toList();
+        Set<String> savedKeys = deviceId
+                .map(id -> savedTripRepository.findSavedRegionKeys(id, canonicalNames))
+                .orElse(Set.of());
+
+        List<RecommendationResponse.RegionCard> regions = regionSpots.stream()
+                .map(e -> buildRegionCard(e.getKey(), e.getValue(), reason, savedKeys.contains(e.getKey())))
                 .collect(Collectors.toList());
 
         return new RecommendationResponse(entry.moodTags(), regions);
     }
 
-    private RecommendationResponse.RegionCard buildRegionCard(String region, List<Spot> spots, String reason) {
+    private RecommendationResponse.RegionCard buildRegionCard(String region, List<Spot> spots, String reason, boolean saved) {
         String imageUrl = spots.stream()
                 .map(Spot::getImageUrl)
                 .filter(Objects::nonNull)
@@ -93,7 +105,7 @@ public class TasteAnalysisService {
                 .limit(PREVIEW_SPOT_COUNT)
                 .map(s -> new RecommendationResponse.PreviewSpot(s.getSpotId(), s.getName()))
                 .collect(Collectors.toList());
-        return new RecommendationResponse.RegionCard(region, region, imageUrl, reason, false, previewSpots);
+        return new RecommendationResponse.RegionCard(region, region, imageUrl, reason, saved, previewSpots);
     }
 
     // location 형식: "경상북도 안동", "제주도" 등 — 첫 번째 공백 이전 단어가 광역 지자체명

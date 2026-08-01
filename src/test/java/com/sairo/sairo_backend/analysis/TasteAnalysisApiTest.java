@@ -21,6 +21,8 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
 
     @BeforeEach
     void insertTestData() {
+        jdbcTemplate.update("DELETE FROM saved_trips");
+        jdbcTemplate.update("DELETE FROM courses");
         jdbcTemplate.update("DELETE FROM spots");
         jdbcTemplate.update("DELETE FROM photos");
         insertPhoto("photo-1", "테스트1", "http://img1.jpg", "제주", "자연,힐링");
@@ -181,6 +183,53 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.regions[0].saved").value(false))
                 .andExpect(jsonPath("$.regions[0].previewSpots[0].spotId").isNotEmpty())
                 .andExpect(jsonPath("$.regions[0].previewSpots[0].name").isNotEmpty());
+    }
+
+    // 기기가 저장한 지역이 추천 카드에 포함되면 saved=true여야 한다.
+    // 사진을 제주도로만 채워 top 지역이 제주도로 고정되도록 한다.
+    @Test
+    void recommendations_withSavedRegion_returnsSavedTrue() throws Exception {
+        jdbcTemplate.update("DELETE FROM photos");
+        for (int i = 1; i <= 5; i++) {
+            insertPhoto("p" + i, "제주" + i, "http://p" + i + ".jpg", "제주도", "바다,힐링");
+        }
+        insertSpot("j1", "한라산", "제주도", "http://j1.jpg");
+        insertSpot("j2", "성산일출봉", "제주도", "http://j2.jpg");
+
+        String deviceId = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+
+        String analysisId = extractAnalysisId(
+                mockMvc.perform(post("/taste-analysis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"photoIds": ["p1","p2","p3","p4","p5"]}
+                                """))
+                        .andExpect(status().isOk())
+                        .andReturn()
+        );
+
+        String courseBody = mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", deviceId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"regionName": "제주도", "spotIds": ["j1", "j2"]}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String courseId = courseBody.split("\"courseId\":\"")[1].split("\"")[0];
+
+        mockMvc.perform(post("/saved-trips")
+                        .header("X-Device-Id", deviceId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\": \"" + courseId + "\"}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/recommendations")
+                        .header("X-Device-Id", deviceId)
+                        .param("analysisId", analysisId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.regions[0].regionName").value("제주도"))
+                .andExpect(jsonPath("$.regions[0].saved").value(true));
     }
 
     // 없거나 만료된 analysisId는 리소스 부재이므로 404다. (docs/api-contract.md 상태 코드)
