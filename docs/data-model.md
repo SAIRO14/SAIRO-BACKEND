@@ -114,7 +114,8 @@ ivfflat은 근사 최근접 인덱스라 **정확도를 일부 포기하고 속�
 `course_data`의 형태는 `course/CourseSnapshot` 레코드다. **지역명을 함께 담는다.**
 공유 코스는 "지역과 코스의 스냅샷"이므로 지역이 빠지면 공유 상세에서 지역명을 표시할 수 없다.
 
-코스는 만든 뒤 수정하지 않는다. 정리 정책은 아직 없다.
+코스는 만든 뒤 수정하지 않는다. **MVP에서는 만료시키지도 정리하지도 않는다.**
+→ [ADR 0014](./decisions/0014-share-link-lifetime.md)
 
 ### device_id가 nullable인 이유
 
@@ -203,12 +204,16 @@ NULL은 유니크 인덱스에서 여러 개가 허용된다.
 
 | | `shared_courses.course_id` | `saved_trips.course_id` |
 |---|---|---|
-| 정책 | `ON DELETE SET NULL` | 없음 (= `RESTRICT`) |
+| 정책 | `ON DELETE SET NULL` | 절 없음 (= `NO ACTION`) |
 | 이유 | 스냅샷을 복사해 두므로 코스가 사라져도 공유 링크가 계속 열려야 한다 | 스냅샷을 복사하지 않으므로 코스가 사라지면 저장 항목이 내용을 잃는다 |
 
-### `RESTRICT`는 의도된 정책이다
+### 삭제를 막는 것은 의도된 정책이다
 
 `courses`를 지우면 외래키가 막는다. **이것이 원하는 동작이다.**
+
+`ON DELETE` 절이 없으므로 PostgreSQL 기본값인 `NO ACTION`이고, 제약이 `NOT DEFERRABLE`이라
+삭제를 즉시 거절한다. **`RESTRICT`와 혼동하지 않는다** — 결과는 같아 보이지만 `NO ACTION`은
+제약을 `DEFERRABLE`로 만들면 검사를 커밋 시점까지 미룰 수 있고 `RESTRICT`는 그럴 수 없다.
 `saved_trips`는 스냅샷을 복사하지 않으므로 코스가 사라지면 저장 항목이 내용을 잃는다.
 삭제를 막는 쪽이 내용 없는 저장 항목을 남기는 쪽보다 낫다고 판단했다.
 → [ADR 0014](./decisions/0014-share-link-lifetime.md)
