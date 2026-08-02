@@ -9,6 +9,7 @@ public record RecommendationResponse(
     public record RegionCard(
             String regionId,
             String regionName,
+            String regionArea,
             String imageUrl,
             String reason,
             boolean saved,

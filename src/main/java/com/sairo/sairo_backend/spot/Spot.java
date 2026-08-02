@@ -15,6 +15,7 @@ public class Spot {
 
     private String name;
     private String regionName;
+    private String areaName;
     private Double lat;
     private Double lng;
     private String imageUrl;

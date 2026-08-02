@@ -150,18 +150,19 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
     }
 
     // 5개 지역 모두 장소를 넣어 top 3 선정이 비결정적이어도 카드가 만들어지도록 한다.
+    // area_name을 넣어 regionArea가 응답에 포함되는지 함께 검증한다.
     @Test
     void recommendations_withSpotsInDb_returnsRegionCardStructure() throws Exception {
-        insertSpot("spot-jeju-1", "한라산", "제주", "http://jeju1.jpg", 33.36, 126.53);
-        insertSpot("spot-jeju-2", "성산일출봉", "제주", "http://jeju2.jpg", 33.46, 126.94);
-        insertSpot("spot-gangwon-1", "설악산", "강원", "http://gw1.jpg", 38.12, 128.47);
-        insertSpot("spot-gangwon-2", "남이섬", "강원", "http://gw2.jpg", 37.79, 127.52);
-        insertSpot("spot-gyeongju-1", "불국사", "경주", "http://gj1.jpg", 35.79, 129.33);
-        insertSpot("spot-gyeongju-2", "첨성대", "경주", "http://gj2.jpg", 35.84, 129.22);
-        insertSpot("spot-jeonbuk-1", "전주한옥마을", "전북", "http://jb1.jpg", 35.82, 127.15);
-        insertSpot("spot-jeonbuk-2", "마이산", "전북", "http://jb2.jpg", 35.74, 127.39);
-        insertSpot("spot-chungnam-1", "서해안", "충남", "http://cn1.jpg", 36.55, 126.60);
-        insertSpot("spot-chungnam-2", "태안", "충남", "http://cn2.jpg", 36.74, 126.30);
+        insertSpot("spot-jeju-1", "한라산", "제주도", "제주 제주시", "http://jeju1.jpg", 33.36, 126.53);
+        insertSpot("spot-jeju-2", "성산일출봉", "제주도", "제주 서귀포", "http://jeju2.jpg", 33.46, 126.94);
+        insertSpot("spot-gangwon-1", "설악산", "강원도", "강원 속초", "http://gw1.jpg", 38.12, 128.47);
+        insertSpot("spot-gangwon-2", "남이섬", "강원도", "강원 춘천", "http://gw2.jpg", 37.79, 127.52);
+        insertSpot("spot-gyeongju-1", "불국사", "경주", "경북 경주", "http://gj1.jpg", 35.79, 129.33);
+        insertSpot("spot-gyeongju-2", "첨성대", "경주", "경북 경주", "http://gj2.jpg", 35.84, 129.22);
+        insertSpot("spot-jeonbuk-1", "전주한옥마을", "전북", "전북 전주", "http://jb1.jpg", 35.82, 127.15);
+        insertSpot("spot-jeonbuk-2", "마이산", "전북", "전북 진안", "http://jb2.jpg", 35.74, 127.39);
+        insertSpot("spot-chungnam-1", "서해안", "충남", "충남 태안", "http://cn1.jpg", 36.55, 126.60);
+        insertSpot("spot-chungnam-2", "태안", "충남", "충남 태안", "http://cn2.jpg", 36.74, 126.30);
 
         String analysisId = extractAnalysisId(
                 mockMvc.perform(post("/taste-analysis")
@@ -177,6 +178,7 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.regions[0].regionId").isNotEmpty())
                 .andExpect(jsonPath("$.regions[0].regionName").isNotEmpty())
+                .andExpect(jsonPath("$.regions[0].regionArea").isNotEmpty())
                 .andExpect(jsonPath("$.regions[0].reason").isNotEmpty())
                 .andExpect(jsonPath("$.regions[0].saved").value(false))
                 .andExpect(jsonPath("$.regions[0].previewSpots[0].spotId").isNotEmpty())
@@ -233,9 +235,13 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
     }
 
     private void insertSpot(String spotId, String name, String regionName, String imageUrl, double lat, double lng) {
+        insertSpot(spotId, name, regionName, null, imageUrl, lat, lng);
+    }
+
+    private void insertSpot(String spotId, String name, String regionName, String areaName, String imageUrl, double lat, double lng) {
         jdbcTemplate.update(
-                "INSERT INTO spots (spot_id, name, region_name, image_url, lat, lng) VALUES (?, ?, ?, ?, ?, ?)",
-                spotId, name, regionName, imageUrl, lat, lng
+                "INSERT INTO spots (spot_id, name, region_name, area_name, image_url, lat, lng) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                spotId, name, regionName, areaName, imageUrl, lat, lng
         );
     }
 

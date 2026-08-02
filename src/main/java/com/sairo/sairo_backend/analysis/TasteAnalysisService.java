@@ -67,25 +67,25 @@ public class TasteAnalysisService {
         String reason = MoodReasonMapper.from(entry.moodTags());
 
         List<RecommendationResponse.RegionCard> regions = topRegions.stream()
-                .map(region -> Map.entry(region, selectClusteredSpots(region)))
-                .filter(e -> !e.getValue().isEmpty())
-                .filter(e -> e.getValue().get(0).getRegionName() != null)
+                .map(region -> Map.entry(region, selectClusteredResult(region)))
+                .filter(e -> !e.getValue().spots().isEmpty())
+                .filter(e -> e.getValue().spots().get(0).getRegionName() != null)
                 .map(e -> {
                     // 부분 일치 조회라 서로 다른 region_name 장소가 섞일 수 있다. 첫 장소 기준으로 정규화한다.
-                    String canonical = e.getValue().get(0).getRegionName();
-                    List<Spot> consistent = e.getValue().stream()
+                    String canonical = e.getValue().spots().get(0).getRegionName();
+                    List<Spot> consistent = e.getValue().spots().stream()
                             .filter(s -> canonical.equals(s.getRegionName()))
                             .collect(Collectors.toList());
-                    return Map.entry(e.getKey(), consistent);
+                    return Map.entry(e.getKey(), new ClusterResult(e.getValue().areaName(), consistent));
                 })
-                .filter(e -> e.getValue().size() >= MIN_SPOTS_FOR_REGION)
-                .map(e -> buildRegionCard(e.getKey(), e.getValue(), reason))
+                .filter(e -> e.getValue().spots().size() >= MIN_SPOTS_FOR_REGION)
+                .map(e -> buildRegionCard(e.getKey(), e.getValue().spots(), e.getValue().areaName(), reason))
                 .collect(Collectors.toList());
 
         return new RecommendationResponse(entry.moodTags(), regions);
     }
 
-    private RecommendationResponse.RegionCard buildRegionCard(String region, List<Spot> spots, String reason) {
+    private RecommendationResponse.RegionCard buildRegionCard(String region, List<Spot> spots, String areaName, String reason) {
         String imageUrl = spots.stream()
                 .map(Spot::getImageUrl)
                 .filter(Objects::nonNull)
@@ -95,16 +95,20 @@ public class TasteAnalysisService {
                 .limit(PREVIEW_SPOT_COUNT)
                 .map(s -> new RecommendationResponse.PreviewSpot(s.getSpotId(), s.getName()))
                 .collect(Collectors.toList());
-        return new RecommendationResponse.RegionCard(region, region, imageUrl, reason, false, previewSpots);
+        return new RecommendationResponse.RegionCard(region, region, areaName, imageUrl, reason, false, previewSpots);
     }
+
+    private record ClusterResult(String areaName, List<Spot> spots) {}
 
     /**
      * 밀집 클러스터 중심에서 반경 40km 이내 스팟 풀을 구성하고, 그 중 SPOTS_PER_REGION개를 랜덤 샘플링한다.
+     * center의 area_name을 함께 반환해 지역 카드의 regionArea로 쓴다.
      *
      * <p>단순 LIMIT 쿼리는 spot_id 순서에 따라 지역 내에서 수백 km 떨어진 스팟이 묶일 수 있다.
      * 클러스터 샘플링을 쓰면 반경 40km 안에서만 스팟이 선택된다.
      *
      * <p>스팟 수가 SPOTS_PER_REGION 이하이면 클러스터 없이 그대로 반환한다.
+     * 이 경우 첫 번째 스팟(spot_id 정렬 기준, 결정적)의 area_name을 사용한다.
      *
      * <p>풀이 CLUSTER_POOL_SIZE를 넘으면 셔플 후 상위 CLUSTER_POOL_SIZE개를 취한다.
      * 셔플을 먼저 해야 반경 내 모든 스팟이 풀에 포함될 확률이 균등해진다.
@@ -112,10 +116,11 @@ public class TasteAnalysisService {
      * <p>ponytail: 밀집 중심 탐색이 O(n²). 지역당 스팟 수가 수백 이하면 문제없다.
      * 데이터가 대폭 늘면 DB 쪽 공간 인덱스(PostGIS ST_DWithin)로 교체한다.
      */
-    private List<Spot> selectClusteredSpots(String region) {
+    private ClusterResult selectClusteredResult(String region) {
         List<Spot> withCoords = spotRepository.findAllByRegionContainingWithCoords(region);
         if (withCoords.size() <= SPOTS_PER_REGION) {
-            return withCoords;
+            String areaName = withCoords.isEmpty() ? null : withCoords.get(0).getAreaName();
+            return new ClusterResult(areaName, withCoords);
         }
 
         Spot center = withCoords.stream()
@@ -136,7 +141,7 @@ public class TasteAnalysisService {
             pool = new ArrayList<>(pool.subList(0, CLUSTER_POOL_SIZE));
         }
 
-        return pool.subList(0, Math.min(SPOTS_PER_REGION, pool.size()));
+        return new ClusterResult(center.getAreaName(), pool.subList(0, Math.min(SPOTS_PER_REGION, pool.size())));
     }
 
     private double distanceKm(Spot a, Spot b) {
