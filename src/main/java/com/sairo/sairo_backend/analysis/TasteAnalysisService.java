@@ -119,8 +119,7 @@ public class TasteAnalysisService {
     private ClusterResult selectClusteredResult(String region) {
         List<Spot> withCoords = spotRepository.findAllByRegionContainingWithCoords(region);
         if (withCoords.size() <= SPOTS_PER_REGION) {
-            String areaName = withCoords.isEmpty() ? null : withCoords.get(0).getAreaName();
-            return new ClusterResult(areaName, withCoords);
+            return new ClusterResult(resolveAreaName(withCoords), withCoords);
         }
 
         Spot center = withCoords.stream()
@@ -141,7 +140,22 @@ public class TasteAnalysisService {
             pool = new ArrayList<>(pool.subList(0, CLUSTER_POOL_SIZE));
         }
 
-        return new ClusterResult(center.getAreaName(), pool.subList(0, Math.min(SPOTS_PER_REGION, pool.size())));
+        List<Spot> selected = new ArrayList<>(pool.subList(0, Math.min(SPOTS_PER_REGION, pool.size())));
+        return new ClusterResult(resolveAreaName(selected), selected);
+    }
+
+    // 반환된 스팟들의 area_name이 모두 같으면 그대로, 여러 시군구에 걸치면 "{광역시도 축약} 일대"를 반환한다.
+    private String resolveAreaName(List<Spot> spots) {
+        List<String> areaNames = spots.stream()
+                .map(Spot::getAreaName)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (areaNames.isEmpty()) return null;
+        if (areaNames.size() == 1) return areaNames.get(0);
+        // area_name 형식이 "{광역시도 축약} {시군구}"이므로 첫 단어가 광역시도 축약명이다.
+        String province = areaNames.get(0).split(" ")[0];
+        return province + " 일대";
     }
 
     private double distanceKm(Spot a, Spot b) {
