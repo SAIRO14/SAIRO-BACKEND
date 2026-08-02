@@ -115,7 +115,13 @@ ivfflat은 근사 최근접 인덱스라 **정확도를 일부 포기하고 속�
 `course_data`의 형태는 `course/CourseSnapshot` 레코드다. **지역명을 함께 담는다.**
 공유 코스는 "지역과 코스의 스냅샷"이므로 지역이 빠지면 공유 상세에서 지역명을 표시할 수 없다.
 
-코스는 만든 뒤 수정하지 않는다. 정리 정책은 아직 없다.
+Day 1·Day 2의 각 장소는 `course/SpotSummary` 형태로 장소 ID·이름·이미지·좌표와
+운영시간·휴무일·주차·연락처를 담는다. 값은 코스를 만든 시점의 `spots` 데이터다.
+이후 장소 마스터가 바뀌어도 저장된 코스와 공유 스냅샷은 바뀌지 않는다.
+생성 시점에 없던 값과 상세 필드가 추가되기 전에 만들어진 옛 스냅샷의 값은 `null`이다.
+
+코스는 만든 뒤 수정하지 않는다. **MVP에서는 만료시키지도 정리하지도 않는다.**
+→ [ADR 0014](./decisions/0014-share-link-lifetime.md)
 
 ### device_id가 nullable인 이유
 
@@ -159,7 +165,8 @@ NULL은 유니크 인덱스에서 여러 개가 허용된다.
 
 `share_id`가 짧아(10자) 규모가 커지면 충돌 확률이 올라간다.
 충돌하면 `SharedCourseRepository`가 새 ID로 다시 시도한다.
-만료 정책은 아직 없다. → [Q-02](./open-questions.md)
+**만료 정책은 두지 않는다.** MVP에서 공유 링크는 만료하지 않고 정리 배치도 없다.
+따라서 이 압력은 시간이 지나도 줄지 않는다. → [ADR 0014](./decisions/0014-share-link-lifetime.md)
 
 ## saved_trips
 
@@ -203,13 +210,20 @@ NULL은 유니크 인덱스에서 여러 개가 허용된다.
 
 | | `shared_courses.course_id` | `saved_trips.course_id` |
 |---|---|---|
-| 정책 | `ON DELETE SET NULL` | 없음 (= `RESTRICT`) |
+| 정책 | `ON DELETE SET NULL` | 절 없음 (= `NO ACTION`) |
 | 이유 | 스냅샷을 복사해 두므로 코스가 사라져도 공유 링크가 계속 열려야 한다 | 스냅샷을 복사하지 않으므로 코스가 사라지면 저장 항목이 내용을 잃는다 |
+
+`courses`를 지우면 외래키가 막는다. **이것이 원하는 동작이다.**
+왜 그렇게 정했는지는 [ADR 0014](./decisions/0014-share-link-lifetime.md)에 있다.
 
 ### 현재의 한계
 
-`courses`를 지우면 외래키가 막는다. 코스 정리 정책([Q-02](./open-questions.md))에서
-저장된 코스를 어떻게 다룰지 함께 정해야 한다.
+지금은 코스를 지우는 경로 자체가 없어 이 제약이 실제로 걸리지 않는다.
+**삭제 경로가 생길 때 함께 처리해야 하는 것**이 하나 있다.
+
+`SavedTripService.save`는 코스 조회와 삽입이 별개 auto-commit이라, 그 사이에 코스가 지워지면
+FK 위반이 500 `INTERNAL_ERROR`로 나간다. 원인은 "없는 코스"이므로 404 `COURSE_NOT_FOUND`가 맞다.
+지금은 재현되지 않으므로 삭제 경로를 만드는 변경에서 이 매핑을 함께 넣는다.
 
 ## 저장되지 않는 데이터
 

@@ -66,7 +66,11 @@ public enum ErrorCode {
     // ─── 공유 ────────────────────────────────────────────────────────────────
     SHARE_CREATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "공유 링크를 만들지 못했어요.", true),
 
-    /** 공유 ID가 없거나 만료된 경우. 만료 정책 확정 전까지 부재와 동일하게 다룬다. */
+    /**
+     * 공유 ID가 없는 경우. MVP에는 만료가 없다 (ADR 0014).
+     * 만료가 생기더라도 부재와 구분하지 않는다 — 구분하면 유효한 ID를 탐색할 여지가 생긴다
+     * (docs/api-contract.md §2).
+     */
     SHARED_COURSE_NOT_FOUND(HttpStatus.NOT_FOUND, "공유된 코스를 찾을 수 없습니다.", false),
 
     // ─── 저장 여행지 ─────────────────────────────────────────────────────────
