@@ -7,9 +7,23 @@ public record SpotSummary(
         String name,
         Double lat,
         Double lng,
-        String imageUrl
+        String imageUrl,
+        String operatingHours,
+        String closedDays,
+        String parking,
+        String contact
 ) {
     static SpotSummary from(Spot spot) {
-        return new SpotSummary(spot.getSpotId(), spot.getName(), spot.getLat(), spot.getLng(), spot.getImageUrl());
+        return new SpotSummary(
+                spot.getSpotId(),
+                spot.getName(),
+                spot.getLat(),
+                spot.getLng(),
+                spot.getImageUrl(),
+                spot.getOperatingHours(),
+                spot.getClosedDays(),
+                spot.getParking(),
+                spot.getContact()
+        );
     }
 }

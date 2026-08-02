@@ -18,7 +18,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CourseFingerprintTest {
 
     private static SpotSummary spot(String id, String name) {
-        return new SpotSummary(id, name, 33.4, 126.5, "https://example.com/" + id + ".jpg");
+        return new SpotSummary(
+                id, name, 33.4, 126.5, "https://example.com/" + id + ".jpg",
+                "09:00~18:00", "연중무휴", "가능", "064-000-0000"
+        );
     }
 
     // 순서는 사용자가 고른 것이 아니라 좌표 정렬이 정하는 값이다. 지문에 넣지 않는다.
@@ -50,16 +53,21 @@ class CourseFingerprintTest {
     /**
      * 장소의 표시 정보는 지문에 들어가지 않는다.
      *
-     * <p>이름·좌표·이미지는 코스를 만든 시점의 {@code spots} 값이 복사된 것이라 마스터가 바뀌면 달라진다.
+     * <p>이름·좌표·이미지·방문 정보는 코스를 만든 시점의 {@code spots} 값이 복사된 것이라
+     * 마스터가 바뀌면 달라진다.
      * 그 차이까지 지문에 넣으면 장소 정보가 수정될 때마다 같은 코스가 또 저장된다.
      */
     @Test
     void of_ignoresSpotDisplayFields() {
         CourseSnapshot before = new CourseSnapshot("제주도",
-                List.of(new SpotSummary("a", "옛 이름", 33.4, 126.5, "https://example.com/old.jpg")),
+                List.of(new SpotSummary(
+                        "a", "옛 이름", 33.4, 126.5, "https://example.com/old.jpg",
+                        "09:00~18:00", "연중무휴", "가능", "064-000-0000")),
                 List.of(spot("b", "장소B")));
         CourseSnapshot after = new CourseSnapshot("제주도",
-                List.of(new SpotSummary("a", "새 이름", 35.1, 129.0, "https://example.com/new.jpg")),
+                List.of(new SpotSummary(
+                        "a", "새 이름", 35.1, 129.0, "https://example.com/new.jpg",
+                        "10:00~17:00", "매주 월요일", "불가", "064-111-1111")),
                 List.of(spot("b", "장소B")));
 
         assertThat(CourseFingerprint.of(after)).isEqualTo(CourseFingerprint.of(before));
