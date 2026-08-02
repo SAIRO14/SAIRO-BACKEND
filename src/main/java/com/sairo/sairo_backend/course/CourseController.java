@@ -119,7 +119,7 @@ public class CourseController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(responseCode = "404", description = "SHARED_COURSE_NOT_FOUND — 공유 ID가 없거나 만료됨"),
+            @ApiResponse(responseCode = "404", description = "SHARED_COURSE_NOT_FOUND — 공유 ID 없음"),
             @ApiResponse(responseCode = "500", description = "INTERNAL_ERROR — 공유 스냅샷 역직렬화 실패")
     })
     @GetMapping("/shared/{shareId}")
