@@ -76,7 +76,7 @@ public class TasteAnalysisService {
                     List<Spot> consistent = e.getValue().spots().stream()
                             .filter(s -> canonical.equals(s.getRegionName()))
                             .collect(Collectors.toList());
-                    return Map.entry(e.getKey(), new ClusterResult(e.getValue().areaName(), consistent));
+                    return Map.entry(e.getKey(), new ClusterResult(resolveAreaName(consistent), consistent));
                 })
                 .filter(e -> e.getValue().spots().size() >= MIN_SPOTS_FOR_REGION)
                 .map(e -> buildRegionCard(e.getKey(), e.getValue().spots(), e.getValue().areaName(), reason))
@@ -102,13 +102,14 @@ public class TasteAnalysisService {
 
     /**
      * 밀집 클러스터 중심에서 반경 40km 이내 스팟 풀을 구성하고, 그 중 SPOTS_PER_REGION개를 랜덤 샘플링한다.
-     * center의 area_name을 함께 반환해 지역 카드의 regionArea로 쓴다.
+     * regionArea는 풀(셔플 전) 전체를 기준으로 결정한다. 샘플링 결과와 무관하게 호출마다 동일한 값을 반환하기 위해서다.
+     * 풀 내 area_name이 모두 같으면 그 값, 같은 광역시도 내 여러 시군구면 "{광역시도 축약} 일대", 광역시도가 다르면 null.
      *
      * <p>단순 LIMIT 쿼리는 spot_id 순서에 따라 지역 내에서 수백 km 떨어진 스팟이 묶일 수 있다.
      * 클러스터 샘플링을 쓰면 반경 40km 안에서만 스팟이 선택된다.
      *
      * <p>스팟 수가 SPOTS_PER_REGION 이하이면 클러스터 없이 그대로 반환한다.
-     * 이 경우 첫 번째 스팟(spot_id 정렬 기준, 결정적)의 area_name을 사용한다.
+     * 이 경우에도 동일한 resolveAreaName 로직으로 regionArea를 결정한다.
      *
      * <p>풀이 CLUSTER_POOL_SIZE를 넘으면 셔플 후 상위 CLUSTER_POOL_SIZE개를 취한다.
      * 셔플을 먼저 해야 반경 내 모든 스팟이 풀에 포함될 확률이 균등해진다.
@@ -135,13 +136,15 @@ public class TasteAnalysisService {
                 .filter(s -> centerRegion.equals(s.getRegionName()))
                 .collect(Collectors.toCollection(ArrayList::new));
 
+        // pool이 확정된 시점에 areaName을 결정한다. 셔플 후 샘플링 결과에 따라 값이 달라지는 것을 막는다.
+        String areaName = resolveAreaName(pool);
         Collections.shuffle(pool);
         if (pool.size() > CLUSTER_POOL_SIZE) {
             pool = new ArrayList<>(pool.subList(0, CLUSTER_POOL_SIZE));
         }
 
         List<Spot> selected = new ArrayList<>(pool.subList(0, Math.min(SPOTS_PER_REGION, pool.size())));
-        return new ClusterResult(resolveAreaName(selected), selected);
+        return new ClusterResult(areaName, selected);
     }
 
     // 반환된 스팟들의 area_name이 모두 같으면 그대로, 여러 시군구에 걸치면 "{광역시도 축약} 일대"를 반환한다.

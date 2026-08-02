@@ -92,7 +92,12 @@ def build_area_name(addr1: str) -> str | None:
     province = PROVINCE_ABBR.get(parts[0])
     if province is None:
         return None
-    sigungu = re.sub(r"(시|군|구)$", "", parts[1])
+    # 세종특별자치시는 시군구 계층이 없어 읍면동 단위로 떨어진다. 광역시도명만 반환한다.
+    if province == "세종":
+        return "세종"
+    sigungu = parts[1]
+    if len(sigungu) > 2 and sigungu[-1] in "시군구":
+        sigungu = sigungu[:-1]
     return f"{province} {sigungu}" if sigungu else province
 
 
