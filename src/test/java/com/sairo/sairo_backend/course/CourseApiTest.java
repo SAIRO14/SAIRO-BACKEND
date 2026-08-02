@@ -46,8 +46,14 @@ class CourseApiTest extends IntegrationTestBase {
                 "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
                 "spot-c", "장소C", "제주", 33.6, 126.7);
         jdbcTemplate.update(
-                "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
-                "spot-d", "장소D", "제주", 33.7, 126.8);
+                """
+                INSERT INTO spots (
+                    spot_id, name, region_name, lat, lng, image_url,
+                    operating_hours, closed_days, parking, contact
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                "spot-d", "장소D", "제주", 33.7, 126.8, "https://example.com/spot-d.jpg",
+                "09:00~18:00", "연중무휴", "가능", "064-000-0000");
         jdbcTemplate.update(
                 "INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?, ?, ?, ?, ?)",
                 "spot-gangwon", "장소E", "강원", 37.8, 128.9);
@@ -158,7 +164,15 @@ class CourseApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.shareId").value(shareId))
                 .andExpect(jsonPath("$.regionName").value("제주"))
                 .andExpect(jsonPath("$.day1.length()").value(2))
-                .andExpect(jsonPath("$.day2.length()").value(2));
+                .andExpect(jsonPath("$.day2.length()").value(2))
+                .andExpect(jsonPath("$.day1[0].spotId").value("spot-d"))
+                .andExpect(jsonPath("$.day1[0].imageUrl").value("https://example.com/spot-d.jpg"))
+                .andExpect(jsonPath("$.day1[0].lat").value(33.7))
+                .andExpect(jsonPath("$.day1[0].lng").value(126.8))
+                .andExpect(jsonPath("$.day1[0].operatingHours").value("09:00~18:00"))
+                .andExpect(jsonPath("$.day1[0].closedDays").value("연중무휴"))
+                .andExpect(jsonPath("$.day1[0].parking").value("가능"))
+                .andExpect(jsonPath("$.day1[0].contact").value("064-000-0000"));
     }
 
     /**
@@ -299,7 +313,11 @@ class CourseApiTest extends IntegrationTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.regionName").value(nullValue()))
                 .andExpect(jsonPath("$.day1.length()").value(1))
-                .andExpect(jsonPath("$.day2.length()").value(1));
+                .andExpect(jsonPath("$.day2.length()").value(1))
+                .andExpect(jsonPath("$.day1[0].operatingHours").value(nullValue()))
+                .andExpect(jsonPath("$.day1[0].closedDays").value(nullValue()))
+                .andExpect(jsonPath("$.day1[0].parking").value(nullValue()))
+                .andExpect(jsonPath("$.day1[0].contact").value(nullValue()));
     }
 
     /**
@@ -365,7 +383,35 @@ class CourseApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.day1").isArray())
                 .andExpect(jsonPath("$.day2").isArray())
                 .andExpect(jsonPath("$.day1.length()").value(2))
-                .andExpect(jsonPath("$.day2.length()").value(2));
+                .andExpect(jsonPath("$.day2.length()").value(2))
+                .andExpect(jsonPath("$.day1[0].spotId").value("spot-d"))
+                .andExpect(jsonPath("$.day1[0].imageUrl").value("https://example.com/spot-d.jpg"))
+                .andExpect(jsonPath("$.day1[0].lat").value(33.7))
+                .andExpect(jsonPath("$.day1[0].lng").value(126.8))
+                .andExpect(jsonPath("$.day1[0].operatingHours").value("09:00~18:00"))
+                .andExpect(jsonPath("$.day1[0].closedDays").value("연중무휴"))
+                .andExpect(jsonPath("$.day1[0].parking").value("가능"))
+                .andExpect(jsonPath("$.day1[0].contact").value("064-000-0000"));
+    }
+
+    @Test
+    void getCourse_afterSpotDetailsChange_returnsCreationTimeSnapshot() throws Exception {
+        String courseId = createCourse();
+        jdbcTemplate.update(
+                """
+                UPDATE spots
+                SET operating_hours = ?, closed_days = ?, parking = ?, contact = ?
+                WHERE spot_id = ?
+                """,
+                "10:00~17:00", "매주 월요일", "불가", "064-111-1111", "spot-d");
+
+        mockMvc.perform(get("/courses/" + courseId).header("X-Device-Id", DEVICE_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.day1[0].spotId").value("spot-d"))
+                .andExpect(jsonPath("$.day1[0].operatingHours").value("09:00~18:00"))
+                .andExpect(jsonPath("$.day1[0].closedDays").value("연중무휴"))
+                .andExpect(jsonPath("$.day1[0].parking").value("가능"))
+                .andExpect(jsonPath("$.day1[0].contact").value("064-000-0000"));
     }
 
     /**
