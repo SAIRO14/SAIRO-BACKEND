@@ -145,6 +145,7 @@ public class TasteAnalysisService {
     }
 
     // 반환된 스팟들의 area_name이 모두 같으면 그대로, 여러 시군구에 걸치면 "{광역시도 축약} 일대"를 반환한다.
+    // 광역시도 자체가 다르면 표시할 수 없으므로 null을 반환한다.
     private String resolveAreaName(List<Spot> spots) {
         List<String> areaNames = spots.stream()
                 .map(Spot::getAreaName)
@@ -154,8 +155,11 @@ public class TasteAnalysisService {
         if (areaNames.isEmpty()) return null;
         if (areaNames.size() == 1) return areaNames.get(0);
         // area_name 형식이 "{광역시도 축약} {시군구}"이므로 첫 단어가 광역시도 축약명이다.
-        String province = areaNames.get(0).split(" ")[0];
-        return province + " 일대";
+        Set<String> provinces = areaNames.stream()
+                .map(a -> a.split(" ")[0])
+                .collect(Collectors.toSet());
+        if (provinces.size() > 1) return null;
+        return provinces.iterator().next() + " 일대";
     }
 
     private double distanceKm(Spot a, Spot b) {
