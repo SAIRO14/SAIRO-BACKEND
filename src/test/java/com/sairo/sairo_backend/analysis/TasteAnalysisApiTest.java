@@ -246,7 +246,7 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.courses[0].courseId").isNotEmpty())
                 .andReturn().getResponse().getContentAsString();
 
-        String courseId = objectMapper.readTree(body).at("/courses/0/courseId").asText();
+        String courseId = objectMapper.readTree(body).at("/courses/0/courseId").asString();
 
         mockMvc.perform(get("/courses/" + courseId).header("X-Device-Id", DEVICE_A))
                 .andExpect(status().isOk())

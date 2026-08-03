@@ -11,6 +11,7 @@ import com.sairo.sairo_backend.spot.Spot;
 import com.sairo.sairo_backend.spot.SpotRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -38,6 +39,7 @@ public class TasteAnalysisService {
      * 사진 목록을 분석하고 지역별 코스를 즉시 생성·저장한다. (#61)
      * 단일 요청으로 취향 분석과 코스 생성을 완료한다.
      */
+    @Transactional
     public TasteAnalysisResponse analyzeAndBuildCourses(List<String> photoIds, String deviceId) {
         AnalysisInput input = prepareInput(photoIds);
         String summary = buildSummary(input.moodTags());
@@ -46,16 +48,17 @@ public class TasteAnalysisService {
         List<TasteAnalysisResponse.CourseCard> courses = buildRegionClusters(input.avgEmbedding()).stream()
                 .map(e -> {
                     List<Spot> spots = e.getValue().spots();
-                    CourseResponse course = courseService.buildFromSpots(
-                            deviceId, spots.get(0).getRegionName(), spots);
+                    String regionArea = e.getValue().areaName();
                     String imageUrl = spots.stream()
                             .map(Spot::getImageUrl)
                             .filter(Objects::nonNull)
                             .findFirst()
                             .orElse(null);
+                    CourseResponse course = courseService.buildFromSpots(
+                            deviceId, spots.get(0).getRegionName(), spots, regionArea, imageUrl, reason);
                     return new TasteAnalysisResponse.CourseCard(
-                            course.courseId(), course.regionName(), e.getValue().areaName(),
-                            imageUrl, reason, false, course.day1(), course.day2());
+                            course.courseId(), course.regionName(), course.regionArea(),
+                            course.imageUrl(), course.reason(), false, course.day1(), course.day2());
                 })
                 .collect(Collectors.toList());
 

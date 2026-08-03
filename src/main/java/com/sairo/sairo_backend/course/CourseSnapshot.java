@@ -5,11 +5,14 @@ import java.util.List;
 /**
  * `courses.course_data`와 `shared_courses.course_data`에 저장되는 JSON 형태다.
  *
- * <p>지역을 함께 담는다. 공유 코스는 "지역과 코스의 스냅샷"이므로
- * 지역이 빠지면 공유 상세에서 지역명을 표시할 수 없다.
+ * <p>지역과 카드 필드(regionArea, imageUrl, reason)를 함께 담는다.
+ * POST /courses 경유 코스와 이전 스냅샷에서 카드 필드는 null이다.
  */
 public record CourseSnapshot(
         String regionName,
+        String regionArea,
+        String imageUrl,
+        String reason,
         List<SpotSummary> day1,
         List<SpotSummary> day2
 ) {}

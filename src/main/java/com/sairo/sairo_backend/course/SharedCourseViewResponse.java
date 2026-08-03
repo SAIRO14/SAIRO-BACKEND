@@ -7,11 +7,11 @@ import java.util.List;
 public record SharedCourseViewResponse(
         String shareId,
 
-        // 코스 영속화(ADR 0010) 이전에 만들어진 공유 링크에는 지역이 없다.
-        // 그 스냅샷은 day1·day2만 담고 있어 지역을 복원할 수 없다.
-        @Schema(description = "지역명. 코스 영속화 이전에 만들어진 공유 링크에서는 null이다.",
-                nullable = true)
-        String regionName,
+        // 코스 영속화(ADR 0010) 이전 공유 링크에는 지역·카드 필드가 없어 null이다.
+        @Schema(nullable = true) String regionName,
+        @Schema(nullable = true) String regionArea,
+        @Schema(nullable = true) String imageUrl,
+        @Schema(nullable = true) String reason,
 
         List<SpotSummary> day1,
         List<SpotSummary> day2

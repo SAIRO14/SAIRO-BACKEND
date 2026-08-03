@@ -15,7 +15,6 @@
 | **분석** | 대표 임베딩과 분위기 태그를 계산하는 과정 | `TasteAnalysisService.prepareInput` |
 | **분위기 태그** | 선택 사진 키워드 빈도 상위 항목 | `moodTags` |
 | **추천 지역** | 취향과 유사한 지역 단위 추천 결과 | `regionName` |
-| **지역 ID** | 추천 지역을 가리키는 식별자. MVP에서는 `regionName`을 그대로 쓴다 | `regionId` |
 | **추천 이유** | 분위기 태그를 기반으로 생성하는 지역 카드 문구 | `MoodReasonMapper`, `reason` |
 | **코스 카드** | 취향 분석 응답에 담기는 지역 단위 코스 요약. courseId·지역명·Day1·Day2를 포함한다 | `TasteAnalysisResponse.CourseCard` |
 | **장소** | 코스에 들어가는 개별 관광지 | `spots` 테이블, `Spot`, `spotId` |

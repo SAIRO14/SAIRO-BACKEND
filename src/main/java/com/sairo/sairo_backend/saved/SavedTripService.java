@@ -52,7 +52,10 @@ class SavedTripService {
                 deviceId,
                 request.courseId(),
                 snapshot.regionName(),
-                CourseFingerprint.of(snapshot)
+                CourseFingerprint.of(snapshot),
+                snapshot.regionArea(),
+                snapshot.imageUrl(),
+                snapshot.reason()
         );
 
         return SavedTripResponse.from(saved);

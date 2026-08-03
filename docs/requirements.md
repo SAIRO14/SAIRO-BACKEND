@@ -143,13 +143,14 @@ ADR을 가리킨다. 표에 남겨두면 아직 할 일로 읽히기 때문이�
 | 우선순위 | 영역 | 현재 | 필요한 변경 |
 |---|---|---|---|
 | P0 | 저장 여행지 | 저장 생성·목록 조회·해제 구현 | 저장 상태 반영 |
-| P0 | 분석 저장 | 프로세스 메모리, TTL 없음 | TTL 있는 공유 저장소로 교체 |
 | P1 | 장소 보완 | 정보 하나만 있어도 완전하다고 판단 | 결측 필드별로 TourAPI 보완 |
 | P2 | 데이터 import | 절대 경로와 DB 비밀번호 하드코딩 | CLI 인자와 환경 변수 사용 |
 
 **코스 정리는 MVP 범위 밖으로 결정했다.** `courses`와 `shared_courses`는 계속 쌓이지만
 만료도 정리 배치도 두지 않는다. 격차가 해소된 것이 아니라 감수하기로 한 것이다.
 볼륨이 늘면 다시 본다. → [ADR 0014](./decisions/0014-share-link-lifetime.md)
+
+**분석 저장소 TTL은 감수하기로 결정했다.** `POST /taste-analysis`가 코스를 직접 반환하면서 `analysisId`가 주 흐름에서 사라졌다. `AnalysisStore`는 deprecated `GET /recommendations`와 함께 제거 예정이다. → [#61](https://github.com/SAIRO14/SAIRO-BACKEND/issues/61)
 
 **완료된 항목:** 오류 계약 표준화([ADR 0001](./decisions/0001-error-response-contract.md)),
 스키마 마이그레이션([ADR 0003](./decisions/0003-flyway-for-schema-migration.md)),

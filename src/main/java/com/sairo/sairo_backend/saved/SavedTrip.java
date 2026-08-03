@@ -9,5 +9,8 @@ record SavedTrip(
         String savedTripId,
         String courseId,
         String regionKey,
+        String regionArea,
+        String imageUrl,
+        String reason,
         LocalDateTime createdAt
 ) {}

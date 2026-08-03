@@ -27,10 +27,10 @@ class CourseFingerprintTest {
     // 순서는 사용자가 고른 것이 아니라 좌표 정렬이 정하는 값이다. 지문에 넣지 않는다.
     @Test
     void of_withSameSpotsInDifferentOrder_producesSameFingerprint() {
-        CourseSnapshot forward = new CourseSnapshot("제주도",
+        CourseSnapshot forward = new CourseSnapshot("제주도", null, null, null,
                 List.of(spot("a", "장소A"), spot("b", "장소B")),
                 List.of(spot("c", "장소C"), spot("d", "장소D")));
-        CourseSnapshot reversed = new CourseSnapshot("제주도",
+        CourseSnapshot reversed = new CourseSnapshot("제주도", null, null, null,
                 List.of(spot("d", "장소D"), spot("c", "장소C")),
                 List.of(spot("b", "장소B"), spot("a", "장소A")));
 
@@ -40,10 +40,10 @@ class CourseFingerprintTest {
     // Day 분할도 정렬 결과에서 나오는 값이므로 정체성에 넣지 않는다.
     @Test
     void of_withSameSpotsInDifferentDaySplit_producesSameFingerprint() {
-        CourseSnapshot even = new CourseSnapshot("제주도",
+        CourseSnapshot even = new CourseSnapshot("제주도", null, null, null,
                 List.of(spot("a", "장소A"), spot("b", "장소B")),
                 List.of(spot("c", "장소C"), spot("d", "장소D")));
-        CourseSnapshot skewed = new CourseSnapshot("제주도",
+        CourseSnapshot skewed = new CourseSnapshot("제주도", null, null, null,
                 List.of(spot("a", "장소A")),
                 List.of(spot("b", "장소B"), spot("c", "장소C"), spot("d", "장소D")));
 
@@ -59,12 +59,12 @@ class CourseFingerprintTest {
      */
     @Test
     void of_ignoresSpotDisplayFields() {
-        CourseSnapshot before = new CourseSnapshot("제주도",
+        CourseSnapshot before = new CourseSnapshot("제주도", null, null, null,
                 List.of(new SpotSummary(
                         "a", "옛 이름", 33.4, 126.5, "https://example.com/old.jpg",
                         "09:00~18:00", "연중무휴", "가능", "064-000-0000")),
                 List.of(spot("b", "장소B")));
-        CourseSnapshot after = new CourseSnapshot("제주도",
+        CourseSnapshot after = new CourseSnapshot("제주도", null, null, null,
                 List.of(new SpotSummary(
                         "a", "새 이름", 35.1, 129.0, "https://example.com/new.jpg",
                         "10:00~17:00", "매주 월요일", "불가", "064-111-1111")),
@@ -76,10 +76,10 @@ class CourseFingerprintTest {
     // 장소 구성이 다르면 다른 코스다. 위 검증들이 공허하게 통과하지 않는지 함께 확인한다.
     @Test
     void of_withDifferentSpots_producesDifferentFingerprint() {
-        CourseSnapshot four = new CourseSnapshot("제주도",
+        CourseSnapshot four = new CourseSnapshot("제주도", null, null, null,
                 List.of(spot("a", "장소A"), spot("b", "장소B")),
                 List.of(spot("c", "장소C"), spot("d", "장소D")));
-        CourseSnapshot three = new CourseSnapshot("제주도",
+        CourseSnapshot three = new CourseSnapshot("제주도", null, null, null,
                 List.of(spot("a", "장소A"), spot("b", "장소B")),
                 List.of(spot("c", "장소C")));
 
@@ -94,9 +94,9 @@ class CourseFingerprintTest {
      */
     @Test
     void of_withSeparatorInsideSpotId_producesDifferentFingerprint() {
-        CourseSnapshot left = new CourseSnapshot("제주도",
+        CourseSnapshot left = new CourseSnapshot("제주도", null, null, null,
                 List.of(spot("a,b", "장소AB")), List.of(spot("c", "장소C")));
-        CourseSnapshot right = new CourseSnapshot("제주도",
+        CourseSnapshot right = new CourseSnapshot("제주도", null, null, null,
                 List.of(spot("a", "장소A")), List.of(spot("b,c", "장소BC")));
 
         assertThat(CourseFingerprint.of(right)).isNotEqualTo(CourseFingerprint.of(left));
@@ -105,9 +105,9 @@ class CourseFingerprintTest {
     // 지역은 지문이 아니라 region_key 컬럼이 맡는다. 지문만 보면 지역이 달라도 같다.
     @Test
     void of_ignoresRegionName() {
-        CourseSnapshot jeju = new CourseSnapshot("제주도",
+        CourseSnapshot jeju = new CourseSnapshot("제주도", null, null, null,
                 List.of(spot("a", "장소A")), List.of(spot("b", "장소B")));
-        CourseSnapshot gangwon = new CourseSnapshot("강원",
+        CourseSnapshot gangwon = new CourseSnapshot("강원", null, null, null,
                 List.of(spot("a", "장소A")), List.of(spot("b", "장소B")));
 
         assertThat(CourseFingerprint.of(gangwon)).isEqualTo(CourseFingerprint.of(jeju));
