@@ -41,7 +41,8 @@ public class TasteAnalysisController {
             @ApiResponse(responseCode = "200", description = "분석 및 코스 생성 성공"),
             @ApiResponse(responseCode = "400", description = """
                     INVALID_REQUEST — 개수 범위(5~10장) 위반 / \
-                    INVALID_PHOTO_SELECTION — 중복 제거 후 5장 미만 또는 유효한 사진이 5장 미만""")
+                    INVALID_PHOTO_SELECTION — 중복 제거 후 5장 미만 또는 유효한 사진이 5장 미만 / \
+                    DEVICE_ID_REQUIRED — X-Device-Id 헤더 누락""")
     })
     @PostMapping("/taste-analysis")
     public TasteAnalysisResponse analyze(

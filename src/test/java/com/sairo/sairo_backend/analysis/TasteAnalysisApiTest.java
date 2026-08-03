@@ -221,10 +221,20 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
     }
 
     // POST /taste-analysis가 발급한 courseId는 즉시 GET /courses/{courseId}로 조회 가능해야 한다.
+    // 픽스처 사진이 5개 지역에 동점으로 분산되므로 top-3에 어느 지역이 뽑혀도 코스가 나오도록
+    // 5개 지역 전부에 스팟 2개씩 삽입한다.
     @Test
     void tasteAnalysis_returnedCourseId_isUsableInGetCourse() throws Exception {
         insertSpot("spot-j1", "한라산", "제주", "http://j1.jpg", 33.36, 126.53);
         insertSpot("spot-j2", "성산일출봉", "제주", "http://j2.jpg", 33.46, 126.94);
+        insertSpot("spot-gw1", "설악산", "강원", "http://gw1.jpg", 38.12, 128.47);
+        insertSpot("spot-gw2", "남이섬", "강원", "http://gw2.jpg", 37.79, 127.52);
+        insertSpot("spot-gj1", "불국사", "경주", "http://gj1.jpg", 35.79, 129.33);
+        insertSpot("spot-gj2", "첨성대", "경주", "http://gj2.jpg", 35.84, 129.22);
+        insertSpot("spot-jb1", "전주한옥마을", "전북", "http://jb1.jpg", 35.82, 127.15);
+        insertSpot("spot-jb2", "마이산", "전북", "http://jb2.jpg", 35.74, 127.39);
+        insertSpot("spot-cn1", "서해안", "충남", "http://cn1.jpg", 36.55, 126.60);
+        insertSpot("spot-cn2", "태안", "충남", "http://cn2.jpg", 36.74, 126.30);
 
         String body = mockMvc.perform(post("/taste-analysis")
                         .header("X-Device-Id", DEVICE_A)
@@ -233,6 +243,7 @@ class TasteAnalysisApiTest extends IntegrationTestBase {
                                 {"photoIds": ["photo-1", "photo-2", "photo-3", "photo-4", "photo-5"]}
                                 """))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courses[0].courseId").isNotEmpty())
                 .andReturn().getResponse().getContentAsString();
 
         String courseId = objectMapper.readTree(body).at("/courses/0/courseId").asText();
