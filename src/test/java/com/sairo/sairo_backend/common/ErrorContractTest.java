@@ -31,6 +31,7 @@ class ErrorContractTest extends IntegrationTestBase {
     @Test
     void validationFailure_usesInvalidRequestCode() throws Exception {
         mockMvc.perform(post("/taste-analysis")
+                        .header("X-Device-Id", "f47ac10b-58cc-4372-a567-0e02b2c3d479")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"photoIds": []}
@@ -73,6 +74,7 @@ class ErrorContractTest extends IntegrationTestBase {
     @Test
     void malformedJson_returns400() throws Exception {
         mockMvc.perform(post("/taste-analysis")
+                        .header("X-Device-Id", "f47ac10b-58cc-4372-a567-0e02b2c3d479")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"photoIds\": ["))
                 .andExpect(status().isBadRequest())
@@ -83,6 +85,7 @@ class ErrorContractTest extends IntegrationTestBase {
     @Test
     void unsupportedContentType_returns415() throws Exception {
         mockMvc.perform(post("/taste-analysis")
+                        .header("X-Device-Id", "f47ac10b-58cc-4372-a567-0e02b2c3d479")
                         .contentType(MediaType.TEXT_PLAIN)
                         .content("hello"))
                 .andExpect(status().isUnsupportedMediaType())

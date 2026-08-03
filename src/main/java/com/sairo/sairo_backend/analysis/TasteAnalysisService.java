@@ -2,6 +2,8 @@ package com.sairo.sairo_backend.analysis;
 
 import com.sairo.sairo_backend.common.BusinessException;
 import com.sairo.sairo_backend.common.ErrorCode;
+import com.sairo.sairo_backend.course.CourseResponse;
+import com.sairo.sairo_backend.course.CourseService;
 import com.sairo.sairo_backend.photo.Photo;
 import com.sairo.sairo_backend.photo.PhotoEmbeddingRepository;
 import com.sairo.sairo_backend.photo.PhotoRepository;
@@ -30,43 +32,73 @@ public class TasteAnalysisService {
     private final PhotoEmbeddingRepository embeddingRepository;
     private final SpotRepository spotRepository;
     private final AnalysisStore analysisStore;
+    private final CourseService courseService;
 
-    public TasteAnalysisResponse analyze(List<String> photoIds) {
+    /**
+     * 사진 목록을 분석하고 지역별 코스를 즉시 생성·저장한다. (#61)
+     * 단일 요청으로 취향 분석과 코스 생성을 완료한다.
+     */
+    public TasteAnalysisResponse analyzeAndBuildCourses(List<String> photoIds, String deviceId) {
+        AnalysisInput input = prepareInput(photoIds);
+        String summary = buildSummary(input.moodTags());
+        String reason = MoodReasonMapper.from(input.moodTags());
+
+        List<TasteAnalysisResponse.CourseCard> courses = buildRegionClusters(input.avgEmbedding()).stream()
+                .map(e -> {
+                    List<Spot> spots = e.getValue().spots();
+                    CourseResponse course = courseService.buildFromSpots(
+                            deviceId, spots.get(0).getRegionName(), spots);
+                    String imageUrl = spots.stream()
+                            .map(Spot::getImageUrl)
+                            .filter(Objects::nonNull)
+                            .findFirst()
+                            .orElse(null);
+                    return new TasteAnalysisResponse.CourseCard(
+                            course.courseId(), course.regionName(), e.getValue().areaName(),
+                            imageUrl, reason, false, course.day1(), course.day2());
+                })
+                .collect(Collectors.toList());
+
+        return new TasteAnalysisResponse(input.moodTags(), summary, courses);
+    }
+
+    /** GET /recommendations 전용. POST /taste-analysis 통합 이후 사실상 미사용. */
+    public RecommendationResponse recommend(String analysisId) {
+        AnalysisStore.AnalysisEntry entry = analysisStore.find(analysisId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ANALYSIS_NOT_FOUND));
+        String reason = MoodReasonMapper.from(entry.moodTags());
+        List<RecommendationResponse.RegionCard> regions = buildRegionClusters(entry.embedding()).stream()
+                .map(e -> buildRegionCard(e.getKey(), e.getValue().spots(), e.getValue().areaName(), reason))
+                .collect(Collectors.toList());
+        return new RecommendationResponse(entry.moodTags(), regions);
+    }
+
+    private record AnalysisInput(float[] avgEmbedding, List<String> moodTags) {}
+
+    private AnalysisInput prepareInput(List<String> photoIds) {
         // 중복 ID는 사실상 더 적은 사진으로 분석하는 것과 같다. 중복 제거 후 재확인한다.
         List<String> uniqueIds = photoIds.stream().distinct().collect(Collectors.toList());
         if (uniqueIds.size() < MIN_PHOTO_COUNT) {
             throw new BusinessException(ErrorCode.INVALID_PHOTO_SELECTION,
                     "중복을 제거하면 5장 미만입니다.");
         }
-
         Map<String, float[]> embeddings = embeddingRepository.findEmbeddingsByIds(uniqueIds);
         if (embeddings.size() < MIN_PHOTO_COUNT) {
             throw new BusinessException(ErrorCode.INVALID_PHOTO_SELECTION,
                     "유효한 사진이 5장 미만입니다.");
         }
-
         float[] avgEmbedding = average(new ArrayList<>(embeddings.values()));
-
         List<Photo> photos = photoRepository.findAllById(uniqueIds);
         List<String> moodTags = parseMoodTags(photos);
-        String analysisId = analysisStore.save(avgEmbedding, moodTags);
-
-        String summary = buildSummary(moodTags);
-
-        return new TasteAnalysisResponse(analysisId, moodTags, summary);
+        return new AnalysisInput(avgEmbedding, moodTags);
     }
 
-    public RecommendationResponse recommend(String analysisId) {
-        AnalysisStore.AnalysisEntry entry = analysisStore.find(analysisId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ANALYSIS_NOT_FOUND));
-
+    /** 대표 임베딩으로 유사 사진을 검색해 상위 지역을 클러스터링한다. recommend()와 analyzeAndBuildCourses()가 공유한다. */
+    private List<Map.Entry<String, ClusterResult>> buildRegionClusters(float[] avgEmbedding) {
         List<PhotoEmbeddingRepository.SimilarPhoto> similarPhotos =
-                embeddingRepository.findSimilarPhotos(entry.embedding(), SIMILAR_PHOTO_LIMIT);
-
+                embeddingRepository.findSimilarPhotos(avgEmbedding, SIMILAR_PHOTO_LIMIT);
         List<String> topRegions = extractTopRegions(similarPhotos);
-        String reason = MoodReasonMapper.from(entry.moodTags());
-
-        List<RecommendationResponse.RegionCard> regions = topRegions.stream()
+        return topRegions.stream()
                 .map(region -> Map.entry(region, selectClusteredResult(region)))
                 .filter(e -> !e.getValue().spots().isEmpty())
                 .filter(e -> e.getValue().spots().get(0).getRegionName() != null)
@@ -79,10 +111,7 @@ public class TasteAnalysisService {
                     return Map.entry(e.getKey(), new ClusterResult(resolveAreaName(consistent), consistent));
                 })
                 .filter(e -> e.getValue().spots().size() >= MIN_SPOTS_FOR_REGION)
-                .map(e -> buildRegionCard(e.getKey(), e.getValue().spots(), e.getValue().areaName(), reason))
                 .collect(Collectors.toList());
-
-        return new RecommendationResponse(entry.moodTags(), regions);
     }
 
     private RecommendationResponse.RegionCard buildRegionCard(String region, List<Spot> spots, String areaName, String reason) {

@@ -53,6 +53,21 @@ public class CourseService {
     }
 
     /**
+     * 취향 분석에서 이미 선택·필터된 스팟으로 코스를 만든다.
+     * DB 재조회와 지역 검증은 TasteAnalysisService에서 이미 처리됐다. (#61)
+     */
+    public CourseResponse buildFromSpots(String deviceId, String regionName, List<Spot> spots) {
+        List<Spot> sorted = sortByNearestNeighbor(spots);
+        int mid = sorted.size() / 2;
+        List<SpotSummary> day1 = sorted.subList(0, mid).stream().map(SpotSummary::from).collect(Collectors.toList());
+        List<SpotSummary> day2 = sorted.subList(mid, sorted.size()).stream().map(SpotSummary::from).collect(Collectors.toList());
+        String courseId = UUID.randomUUID().toString();
+        courseRepository.save(courseId, deviceId, objectMapper.writeValueAsString(
+                new CourseSnapshot(regionName, day1, day2)));
+        return new CourseResponse(courseId, regionName, day1, day2);
+    }
+
+    /**
      * 요청 지역을 검증하고, **스냅샷에 저장할 지역명을 장소에서 유도해** 돌려준다.
      *
      * <p>요청 값을 그대로 저장하지 않는다. 부분 일치로 판정하므로 `"주"` 같은 값을 보내면
