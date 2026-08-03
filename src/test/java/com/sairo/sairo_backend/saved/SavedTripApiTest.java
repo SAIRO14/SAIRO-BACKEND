@@ -201,6 +201,31 @@ class SavedTripApiTest extends IntegrationTestBase {
     }
 
     /**
+     * 취향 분석 경유 코스에는 regionArea·imageUrl·reason이 담겨 있고
+     * 저장 응답에 그대로 나온다.
+     *
+     * <p>POST /courses 경유 코스나 이전 저장 항목에서는 세 필드가 null이지만,
+     * POST /taste-analysis 경유 코스는 스냅샷에 이 값을 복사한다.
+     * 목록 조회가 courses를 조인하지 않고도 카드를 표시할 수 있도록 하기 위해서다.
+     */
+    @Test
+    void save_fromAnalysisCourse_includesCardFields() throws Exception {
+        String courseId = UUID.randomUUID().toString();
+        jdbcTemplate.update(
+                "INSERT INTO courses (course_id, device_id, course_data) VALUES (?, ?, ?::jsonb)",
+                courseId, DEVICE_A, """
+                        {"regionName":"제주도","regionArea":"제주 서부","imageUrl":"https://example.com/img.jpg",
+                         "reason":"자연 경관이 아름다운 곳","day1":[],"day2":[]}
+                        """);
+
+        mockMvc.perform(saveRequest(DEVICE_A, courseId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.regionArea").value("제주 서부"))
+                .andExpect(jsonPath("$.imageUrl").value("https://example.com/img.jpg"))
+                .andExpect(jsonPath("$.reason").value("자연 경관이 아름다운 곳"));
+    }
+
+    /**
      * 저장된 코스 스냅샷을 읽지 못하면 500 INTERNAL_ERROR다.
      *
      * <p>컨트롤러가 이 500을 명세에 적었으므로 실제로 그 코드가 나오는지 고정한다.

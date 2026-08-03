@@ -1,6 +1,6 @@
 # 0010. 코스를 서버에 영속화한다
 
-- **상태:** 수용됨
+- **상태:** 수용됨 (코스 생성 시점 결정 부분은 [ADR 0015](./0015-eager-course-creation.md)로 대체됨)
 - **날짜:** 2026-07-26
 - **관련:** Q-03, [ADR 0008](./0008-greedy-nearest-neighbor-course-sort.md)
 
