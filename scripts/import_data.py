@@ -2,6 +2,7 @@
 """One-time data import: deduped_results.json (photos) + spots_phase1_checkpoint.json (spots)"""
 
 import json
+import re
 import sys
 import psycopg2
 
@@ -18,6 +19,30 @@ REGION_NORM = {
     "제주특별자치도": "제주도",
     "전북특별자치도": "전라북도",
     "강원특별자치도": "강원도",
+}
+
+# addr1 first-word → 광역시도 축약명 (area_name 생성에 사용)
+PROVINCE_ABBR = {
+    "서울특별시": "서울",
+    "부산광역시": "부산",
+    "대구광역시": "대구",
+    "인천광역시": "인천",
+    "광주광역시": "광주",
+    "대전광역시": "대전",
+    "울산광역시": "울산",
+    "세종특별자치시": "세종",
+    "경기도": "경기",
+    "강원도": "강원",
+    "강원특별자치도": "강원",
+    "충청북도": "충북",
+    "충청남도": "충남",
+    "전라북도": "전북",
+    "전북특별자치도": "전북",
+    "전라남도": "전남",
+    "경상북도": "경북",
+    "경상남도": "경남",
+    "제주도": "제주",
+    "제주특별자치도": "제주",
 }
 
 PROJECT_ROOT = "/Users/limchaeryun/Desktop/sairo-backend"
@@ -57,6 +82,25 @@ def normalize_region(addr1: str) -> str:
     return REGION_NORM.get(first_word, first_word)
 
 
+def build_area_name(addr1: str) -> str | None:
+    """addr1에서 시군구 단위 지역권을 생성한다. 예: "충청북도 보은군 ..." → "충북 보은"."""
+    if not addr1:
+        return None
+    parts = addr1.strip().split()
+    if len(parts) < 2:
+        return None
+    province = PROVINCE_ABBR.get(parts[0])
+    if province is None:
+        return None
+    # 세종특별자치시는 시군구 계층이 없어 읍면동 단위로 떨어진다. 광역시도명만 반환한다.
+    if province == "세종":
+        return "세종"
+    sigungu = parts[1]
+    if len(sigungu) > 2 and sigungu[-1] in "시군구":
+        sigungu = sigungu[:-1]
+    return f"{province} {sigungu}" if sigungu else province
+
+
 def import_spots(cur, data: list) -> int:
     inserted = 0
     for item in data:
@@ -71,16 +115,17 @@ def import_spots(cur, data: list) -> int:
         cur.execute(
             """
             INSERT INTO spots (
-                spot_id, name, region_name, lat, lng, image_url,
+                spot_id, name, region_name, area_name, lat, lng, image_url,
                 operating_hours, closed_days, parking, contact,
                 cat1, cat2, cat3
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (spot_id) DO NOTHING
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (spot_id) DO UPDATE SET area_name = EXCLUDED.area_name
             """,
             (
                 item["contentid"],
                 item.get("title", ""),
                 region_name,
+                build_area_name(addr1),
                 lat,
                 lng,
                 item.get("firstimage") or None,

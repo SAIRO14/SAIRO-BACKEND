@@ -67,25 +67,25 @@ public class TasteAnalysisService {
         String reason = MoodReasonMapper.from(entry.moodTags());
 
         List<RecommendationResponse.RegionCard> regions = topRegions.stream()
-                .map(region -> Map.entry(region, selectClusteredSpots(region)))
-                .filter(e -> !e.getValue().isEmpty())
-                .filter(e -> e.getValue().get(0).getRegionName() != null)
+                .map(region -> Map.entry(region, selectClusteredResult(region)))
+                .filter(e -> !e.getValue().spots().isEmpty())
+                .filter(e -> e.getValue().spots().get(0).getRegionName() != null)
                 .map(e -> {
                     // 부분 일치 조회라 서로 다른 region_name 장소가 섞일 수 있다. 첫 장소 기준으로 정규화한다.
-                    String canonical = e.getValue().get(0).getRegionName();
-                    List<Spot> consistent = e.getValue().stream()
+                    String canonical = e.getValue().spots().get(0).getRegionName();
+                    List<Spot> consistent = e.getValue().spots().stream()
                             .filter(s -> canonical.equals(s.getRegionName()))
                             .collect(Collectors.toList());
-                    return Map.entry(e.getKey(), consistent);
+                    return Map.entry(e.getKey(), new ClusterResult(resolveAreaName(consistent), consistent));
                 })
-                .filter(e -> e.getValue().size() >= MIN_SPOTS_FOR_REGION)
-                .map(e -> buildRegionCard(e.getKey(), e.getValue(), reason))
+                .filter(e -> e.getValue().spots().size() >= MIN_SPOTS_FOR_REGION)
+                .map(e -> buildRegionCard(e.getKey(), e.getValue().spots(), e.getValue().areaName(), reason))
                 .collect(Collectors.toList());
 
         return new RecommendationResponse(entry.moodTags(), regions);
     }
 
-    private RecommendationResponse.RegionCard buildRegionCard(String region, List<Spot> spots, String reason) {
+    private RecommendationResponse.RegionCard buildRegionCard(String region, List<Spot> spots, String areaName, String reason) {
         String imageUrl = spots.stream()
                 .map(Spot::getImageUrl)
                 .filter(Objects::nonNull)
@@ -95,16 +95,21 @@ public class TasteAnalysisService {
                 .limit(PREVIEW_SPOT_COUNT)
                 .map(s -> new RecommendationResponse.PreviewSpot(s.getSpotId(), s.getName()))
                 .collect(Collectors.toList());
-        return new RecommendationResponse.RegionCard(region, region, imageUrl, reason, false, previewSpots);
+        return new RecommendationResponse.RegionCard(region, region, areaName, imageUrl, reason, false, previewSpots);
     }
+
+    private record ClusterResult(String areaName, List<Spot> spots) {}
 
     /**
      * 밀집 클러스터 중심에서 반경 40km 이내 스팟 풀을 구성하고, 그 중 SPOTS_PER_REGION개를 랜덤 샘플링한다.
+     * regionArea는 풀(셔플 전) 전체를 기준으로 결정한다. 샘플링 결과와 무관하게 호출마다 동일한 값을 반환하기 위해서다.
+     * 풀 내 area_name이 모두 같으면 그 값, 같은 광역시도 내 여러 시군구면 "{광역시도 축약} 일대", 광역시도가 다르면 null.
      *
      * <p>단순 LIMIT 쿼리는 spot_id 순서에 따라 지역 내에서 수백 km 떨어진 스팟이 묶일 수 있다.
      * 클러스터 샘플링을 쓰면 반경 40km 안에서만 스팟이 선택된다.
      *
      * <p>스팟 수가 SPOTS_PER_REGION 이하이면 클러스터 없이 그대로 반환한다.
+     * 이 경우에도 동일한 resolveAreaName 로직으로 regionArea를 결정한다.
      *
      * <p>풀이 CLUSTER_POOL_SIZE를 넘으면 셔플 후 상위 CLUSTER_POOL_SIZE개를 취한다.
      * 셔플을 먼저 해야 반경 내 모든 스팟이 풀에 포함될 확률이 균등해진다.
@@ -112,10 +117,10 @@ public class TasteAnalysisService {
      * <p>ponytail: 밀집 중심 탐색이 O(n²). 지역당 스팟 수가 수백 이하면 문제없다.
      * 데이터가 대폭 늘면 DB 쪽 공간 인덱스(PostGIS ST_DWithin)로 교체한다.
      */
-    private List<Spot> selectClusteredSpots(String region) {
+    private ClusterResult selectClusteredResult(String region) {
         List<Spot> withCoords = spotRepository.findAllByRegionContainingWithCoords(region);
         if (withCoords.size() <= SPOTS_PER_REGION) {
-            return withCoords;
+            return new ClusterResult(resolveAreaName(withCoords), withCoords);
         }
 
         Spot center = withCoords.stream()
@@ -131,12 +136,33 @@ public class TasteAnalysisService {
                 .filter(s -> centerRegion.equals(s.getRegionName()))
                 .collect(Collectors.toCollection(ArrayList::new));
 
+        // pool이 확정된 시점에 areaName을 결정한다. 셔플 후 샘플링 결과에 따라 값이 달라지는 것을 막는다.
+        String areaName = resolveAreaName(pool);
         Collections.shuffle(pool);
         if (pool.size() > CLUSTER_POOL_SIZE) {
             pool = new ArrayList<>(pool.subList(0, CLUSTER_POOL_SIZE));
         }
 
-        return pool.subList(0, Math.min(SPOTS_PER_REGION, pool.size()));
+        List<Spot> selected = new ArrayList<>(pool.subList(0, Math.min(SPOTS_PER_REGION, pool.size())));
+        return new ClusterResult(areaName, selected);
+    }
+
+    // 반환된 스팟들의 area_name이 모두 같으면 그대로, 여러 시군구에 걸치면 "{광역시도 축약} 일대"를 반환한다.
+    // 광역시도 자체가 다르면 표시할 수 없으므로 null을 반환한다.
+    private String resolveAreaName(List<Spot> spots) {
+        List<String> areaNames = spots.stream()
+                .map(Spot::getAreaName)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (areaNames.isEmpty()) return null;
+        if (areaNames.size() == 1) return areaNames.get(0);
+        // area_name 형식이 "{광역시도 축약} {시군구}"이므로 첫 단어가 광역시도 축약명이다.
+        Set<String> provinces = areaNames.stream()
+                .map(a -> a.split(" ")[0])
+                .collect(Collectors.toSet());
+        if (provinces.size() > 1) return null;
+        return provinces.iterator().next() + " 일대";
     }
 
     private double distanceKm(Spot a, Spot b) {

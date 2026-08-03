@@ -79,7 +79,8 @@ ivfflat은 근사 최근접 인덱스라 **정확도를 일부 포기하고 속�
 |---|---|---|
 | `spot_id` | TEXT PK | TourAPI의 콘텐츠 ID와 같은 값. 장소 상세 보완에 그대로 쓴다. |
 | `name` | TEXT | 장소명 |
-| `region_name` | TEXT | 지역명. 추천된 지역으로 장소를 찾을 때 `ILIKE` 부분 일치로 조회한다. |
+| `region_name` | TEXT | 광역시도 단위 지역명. 추천된 지역으로 장소를 찾을 때 `ILIKE` 부분 일치로 조회한다. |
+| `area_name` | TEXT | 시군구 단위 지역권. `import_data.py`가 addr1에서 파생한다. 예: `"충북 보은"`, `"충북 일대"`. 추천 지역 카드의 `regionArea`로 노출된다. null이면 클라이언트에서 생략 처리한다. |
 | `lat` / `lng` | FLOAT | 좌표. **결측일 수 있다.** |
 | `image_url` | TEXT | 대표 이미지 |
 | `operating_hours` | TEXT | 운영시간 |
