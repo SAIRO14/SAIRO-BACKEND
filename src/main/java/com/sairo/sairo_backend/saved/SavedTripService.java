@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-class SavedTripService {
+public class SavedTripService {
 
     private final SavedTripRepository savedTripRepository;
     private final CourseRepository courseRepository;
@@ -113,5 +113,16 @@ class SavedTripService {
      */
     void delete(String deviceId, String savedTripId) {
         savedTripRepository.deleteByIdAndDeviceId(savedTripId, deviceId);
+    }
+
+    /**
+     * 이 기기가 해당 스냅샷과 같은 장소 구성의 코스를 저장한 적 있는지 반환한다.
+     *
+     * <p>판정 키는 {@code courseId}가 아니라 코스 지문이다. 같은 장소로 만든 코스는
+     * {@code courseId}가 달라도 같은 저장 항목으로 본다. (ADR 0011)
+     */
+    public boolean isSaved(String deviceId, CourseSnapshot snapshot) {
+        return savedTripRepository.existsByDeviceIdAndFingerprint(
+                deviceId, CourseFingerprint.of(snapshot));
     }
 }

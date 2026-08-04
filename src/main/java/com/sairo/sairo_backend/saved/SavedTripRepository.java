@@ -128,6 +128,13 @@ class SavedTripRepository {
      * 매치 0건은 정상적인 재시도에서도 늘 일어나므로 한 건씩 로그로 남길 값은 아니고,
      * 필요해지면 응답 계약은 그대로 둔 채 <b>비율</b>을 보는 메트릭으로 잡는다.
      */
+    boolean existsByDeviceIdAndFingerprint(String deviceId, String fingerprint) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM saved_trips WHERE device_id = ? AND course_fingerprint = ?",
+                Integer.class, deviceId, fingerprint);
+        return count != null && count > 0;
+    }
+
     void deleteByIdAndDeviceId(String savedTripId, String deviceId) {
         jdbcTemplate.update(
                 "DELETE FROM saved_trips WHERE saved_trip_id = ? AND device_id = ?",

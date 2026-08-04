@@ -41,7 +41,8 @@ class CourseServiceTest {
                 .thenThrow(new IllegalStateException("공유 ID를 5회 시도 안에 만들지 못했습니다."));
 
         CourseService service = new CourseService(
-                mock(SpotRepository.class), courseRepository, sharedCourseRepository, new ObjectMapper());
+                mock(SpotRepository.class), courseRepository, sharedCourseRepository,
+                mock(com.sairo.sairo_backend.saved.SavedTripService.class), new ObjectMapper());
 
         assertThatThrownBy(() -> service.shareCourse(DEVICE, "course-1"))
                 .isInstanceOf(BusinessException.class)
@@ -57,7 +58,7 @@ class CourseServiceTest {
 
         CourseService service = new CourseService(
                 mock(SpotRepository.class), courseRepository, mock(SharedCourseRepository.class),
-                new ObjectMapper());
+                mock(com.sairo.sairo_backend.saved.SavedTripService.class), new ObjectMapper());
 
         assertThatThrownBy(() -> service.shareCourse(DEVICE, "nope"))
                 .isInstanceOf(BusinessException.class)

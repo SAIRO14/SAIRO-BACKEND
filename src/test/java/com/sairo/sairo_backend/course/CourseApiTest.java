@@ -32,7 +32,7 @@ class CourseApiTest extends IntegrationTestBase {
 
     @BeforeEach
     void setUp() {
-        // FK가 ON DELETE SET NULL이라 순서에 제약은 없다. 읽는 순서대로 지운다.
+        jdbcTemplate.update("DELETE FROM saved_trips");
         jdbcTemplate.update("DELETE FROM shared_courses");
         jdbcTemplate.update("DELETE FROM courses");
         jdbcTemplate.update("DELETE FROM spots");
@@ -477,6 +477,48 @@ class CourseApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.code").value("DEVICE_ID_REQUIRED"));
     }
 
+    // 저장하지 않은 코스는 saved=false다.
+    @Test
+    void getCourse_withUnsavedCourse_returnsSavedFalse() throws Exception {
+        String courseId = createCourse();
+
+        mockMvc.perform(get("/courses/" + courseId).header("X-Device-Id", DEVICE_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.saved").value(false));
+    }
+
+    /**
+     * 저장한 코스는 saved=true다.
+     *
+     * <p>판정 키는 courseId가 아니라 코스 지문이다. 같은 장소 구성으로 만든 새 코스를
+     * 조회해도 이미 저장된 코스가 있으면 saved=true가 나온다. (ADR 0011)
+     */
+    @Test
+    void getCourse_withSavedCourse_returnsSavedTrue() throws Exception {
+        String courseId = createCourse();
+        saveCourse(courseId);
+
+        mockMvc.perform(get("/courses/" + courseId).header("X-Device-Id", DEVICE_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.saved").value(true));
+    }
+
+    // 저장 해제 후에는 saved=false로 돌아온다.
+    @Test
+    void getCourse_afterDelete_returnsSavedFalse() throws Exception {
+        String courseId = createCourse();
+        String savedTripId = saveCourse(courseId);
+
+        mockMvc.perform(delete("/saved-trips")
+                        .header("X-Device-Id", DEVICE_A)
+                        .param("savedTripId", savedTripId))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/courses/" + courseId).header("X-Device-Id", DEVICE_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.saved").value(false));
+    }
+
     private String createCourse() throws Exception {
         String body = mockMvc.perform(post("/courses")
                         .header("X-Device-Id", DEVICE_A)
@@ -487,6 +529,16 @@ class CourseApiTest extends IntegrationTestBase {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return extract(body, "courseId");
+    }
+
+    private String saveCourse(String courseId) throws Exception {
+        String body = mockMvc.perform(post("/saved-trips")
+                        .header("X-Device-Id", DEVICE_A)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\": \"" + courseId + "\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return extract(body, "savedTripId");
     }
 
     private String shareResponseBody(String courseId) throws Exception {

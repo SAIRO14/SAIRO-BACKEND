@@ -10,6 +10,7 @@ public record CourseResponse(
         @Schema(nullable = true) String regionArea,
         @Schema(nullable = true) String imageUrl,
         @Schema(nullable = true) String reason,
+        boolean saved,
         List<SpotSummary> day1,
         List<SpotSummary> day2
 ) {}
