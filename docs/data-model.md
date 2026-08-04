@@ -20,9 +20,11 @@ saved_trips     사용자가 저장한 지역과 코스. 내용은 courses를 �
 JSONB로 복사해 담고 `spots`를 참조하지 않는다. 공유된 코스는 원본 장소 정보가 나중에 바뀌어도
 공유 당시 모습을 그대로 재현해야 하기 때문이다.
 
-**저장 여행지는 예외로 복사하지 않는다.** `saved_trips`는 `course_id`로 내용을 가져온다.
-"저장 당시 모습 그대로"가 요구사항인 공유와 달리, 저장은 사용자가 다시 열어보는 목록이라
-같은 JSON을 두 벌 두는 비용이 이득보다 크다. ([ADR 0011](./decisions/0011-saved-trip-identity.md))
+**저장 여행지는 코스 본문을 복사하지 않고 `course_id`로 참조한다.** 단, 목록 카드에 표시하는
+지역 소재지·대표 이미지·추천 이유는 `saved_trips`의 별도 컬럼(`region_area`, `image_url`, `reason`)에
+저장 시점의 값을 복사해 둔다. 목록 조회마다 `courses`를 조인해 JSONB를 역직렬화하는 비용을
+피하기 위해서다. 장소 본문(`day1`, `day2`)은 코스 상세 조회 시 `courses`에서 읽는다.
+([ADR 0011](./decisions/0011-saved-trip-identity.md))
 
 외래키는 둘이다. `shared_courses.course_id`는 내용을 가져오기 위한 참조가 아니라
 **어느 코스에서 나온 공유인지 남기는 용도**이고 ([ADR 0010](./decisions/0010-course-persistence.md)),
@@ -179,6 +181,9 @@ NULL은 유니크 인덱스에서 여러 개가 허용된다.
 | `course_id` | TEXT NOT NULL FK | 저장된 코스. 내용을 가져오는 참조다. |
 | `region_key` | TEXT NOT NULL | 저장 당시의 지역명. `CourseSnapshot.regionName`을 그대로 넣는다. 표시와 필터에 쓰고 **중복 판정에는 쓰지 않는다.** 아래 참고. |
 | `course_fingerprint` | TEXT NOT NULL | 코스 지문. 장소 ID를 정렬해 이어 붙인 값의 SHA-256. |
+| `region_area` | TEXT | 저장 당시의 지역 소재지(시군구). `POST /taste-analysis` 경유 코스에만 있다. |
+| `image_url` | TEXT | 저장 당시의 코스 대표 이미지 URL. `POST /taste-analysis` 경유 코스에만 있다. |
+| `reason` | TEXT | 저장 당시의 추천 이유 문구. `POST /taste-analysis` 경유 코스에만 있다. |
 | `created_at` | TIMESTAMP NOT NULL | 저장 시각 |
 
 ### 소유자를 저장 행이 직접 들고 있는 이유

@@ -38,18 +38,26 @@ public class CourseService {
             throw new BusinessException(ErrorCode.INSUFFICIENT_SPOTS, "유효한 장소가 2개 이상 필요합니다.");
         }
         String regionName = resolveRegionName(request.regionName(), spots);
+        return buildFromSpots(deviceId, regionName, spots, null, null, null);
+    }
 
+    /**
+     * 취향 분석에서 이미 선택·필터된 스팟으로 코스를 만든다.
+     * DB 재조회와 지역 검증은 TasteAnalysisService에서 이미 처리됐다. (#61)
+     *
+     * <p>regionArea·imageUrl·reason은 취향 분석 경로에서만 채워진다.
+     * POST /courses 경유이면 null을 전달한다.
+     */
+    public CourseResponse buildFromSpots(String deviceId, String regionName, List<Spot> spots,
+                                         String regionArea, String imageUrl, String reason) {
         List<Spot> sorted = sortByNearestNeighbor(spots);
-
         int mid = sorted.size() / 2;
         List<SpotSummary> day1 = sorted.subList(0, mid).stream().map(SpotSummary::from).collect(Collectors.toList());
         List<SpotSummary> day2 = sorted.subList(mid, sorted.size()).stream().map(SpotSummary::from).collect(Collectors.toList());
-
         String courseId = UUID.randomUUID().toString();
         courseRepository.save(courseId, deviceId, objectMapper.writeValueAsString(
-                new CourseSnapshot(regionName, day1, day2)));
-
-        return new CourseResponse(courseId, regionName, day1, day2);
+                new CourseSnapshot(regionName, regionArea, imageUrl, reason, day1, day2)));
+        return new CourseResponse(courseId, regionName, regionArea, imageUrl, reason, day1, day2);
     }
 
     /**
@@ -93,7 +101,8 @@ public class CourseService {
 
         try {
             CourseSnapshot snapshot = objectMapper.readValue(json, CourseSnapshot.class);
-            return new CourseResponse(courseId, snapshot.regionName(), snapshot.day1(), snapshot.day2());
+            return new CourseResponse(courseId, snapshot.regionName(), snapshot.regionArea(),
+                    snapshot.imageUrl(), snapshot.reason(), snapshot.day1(), snapshot.day2());
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "코스 데이터 역직렬화 실패", e);
         }
@@ -132,7 +141,8 @@ public class CourseService {
 
         try {
             CourseSnapshot snapshot = objectMapper.readValue(json, CourseSnapshot.class);
-            return new SharedCourseViewResponse(shareId, snapshot.regionName(), snapshot.day1(), snapshot.day2());
+            return new SharedCourseViewResponse(shareId, snapshot.regionName(), snapshot.regionArea(),
+                    snapshot.imageUrl(), snapshot.reason(), snapshot.day1(), snapshot.day2());
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "코스 데이터 역직렬화 실패", e);
         }

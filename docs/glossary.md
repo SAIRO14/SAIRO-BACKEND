@@ -12,13 +12,11 @@
 | **선택 사진** | 사용자가 고른 5~10장 | `photoIds` |
 | **임베딩** | 사진의 512차원 CLIP 벡터 | `photos.embedding` |
 | **대표 임베딩** | 선택 사진 임베딩의 산술 평균 | `TasteAnalysisService.average` |
-| **분석** | 대표 임베딩과 분위기 태그를 계산하는 과정 | `TasteAnalysisService.analyze` |
-| **분석 ID** | 분석 결과를 가리키는 임시 식별자 | `analysisId` |
+| **분석** | 대표 임베딩과 분위기 태그를 계산하는 과정 | `TasteAnalysisService.prepareInput` |
 | **분위기 태그** | 선택 사진 키워드 빈도 상위 항목 | `moodTags` |
-| **추천 지역** | 취향과 유사한 지역 단위 추천 결과 | `regionName`, `RecommendationResponse.RegionCard` |
-| **지역 ID** | 추천 지역을 가리키는 식별자. MVP에서는 `regionName`을 그대로 쓴다 | `regionId` |
+| **추천 지역** | 취향과 유사한 지역 단위 추천 결과 | `regionName` |
 | **추천 이유** | 분위기 태그를 기반으로 생성하는 지역 카드 문구 | `MoodReasonMapper`, `reason` |
-| **대표 장소** | 지역 카드에 노출하는 최대 2개 장소 미리보기 | `RecommendationResponse.PreviewSpot`, `previewSpots` |
+| **코스 카드** | 취향 분석 응답에 담기는 지역 단위 코스 요약. courseId·지역명·Day1·Day2를 포함한다 | `TasteAnalysisResponse.CourseCard` |
 | **장소** | 코스에 들어가는 개별 관광지 | `spots` 테이블, `Spot`, `spotId` |
 | **코스** | 지역 안의 장소를 Day 1·Day 2로 나눈 1박 2일 일정 | `courses` 테이블, `CourseResponse`, `day1`, `day2` |
 | **코스 스냅샷** | 지역과 Day 1·Day 2를 함께 담아 저장하는 형태 | `CourseSnapshot`, `course_data` |
@@ -47,15 +45,15 @@
 **둘은 별개 기능이다.** 현재 `shared_courses`를 저장 목록처럼 쓰는 코드가 있다면
 그건 임시 대응이지 설계가 아니다.
 
-### 분석 ID vs 코스 ID vs 공유 ID
+### 코스 ID vs 공유 ID
 
 | 식별자 | 수명 | 서버 저장 |
 |---|---|---|
-| `analysisId` | 임시 | 프로세스 메모리 (TTL 없음) |
 | `courseId` | 영구 | `courses` (소유자 있음) |
 | `shareId` | 영구 | `shared_courses` |
 | `savedTripId` | 영구 | `saved_trips` |
 
+`POST /taste-analysis`는 코스를 즉시 생성하고 `courseId`를 응답에 담는다.
 `courseId`는 공유와 저장이 코스를 가리키는 참조 키다.
 다만 같은 장소로 `POST /courses`를 다시 부르면 새 `courseId`가 나온다.
 **"내용이 같은 코스"를 판정하는 키는 아니다.** 그 판정은 코스 지문이 한다.

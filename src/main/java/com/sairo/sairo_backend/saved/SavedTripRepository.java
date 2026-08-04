@@ -21,6 +21,9 @@ class SavedTripRepository {
             rs.getString("saved_trip_id"),
             rs.getString("course_id"),
             rs.getString("region_key"),
+            rs.getString("region_area"),
+            rs.getString("image_url"),
+            rs.getString("reason"),
             rs.getTimestamp("created_at").toLocalDateTime()
     );
 
@@ -44,17 +47,21 @@ class SavedTripRepository {
                    String deviceId,
                    String courseId,
                    String regionKey,
-                   String courseFingerprint) {
+                   String courseFingerprint,
+                   String regionArea,
+                   String imageUrl,
+                   String reason) {
         return jdbcTemplate.queryForObject(
                 """
-                INSERT INTO saved_trips (saved_trip_id, device_id, course_id, region_key, course_fingerprint)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO saved_trips
+                    (saved_trip_id, device_id, course_id, region_key, course_fingerprint, region_area, image_url, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (device_id, course_fingerprint)
                     DO UPDATE SET device_id = EXCLUDED.device_id
-                RETURNING saved_trip_id, course_id, region_key, created_at
+                RETURNING saved_trip_id, course_id, region_key, region_area, image_url, reason, created_at
                 """,
                 ROW_MAPPER,
-                savedTripId, deviceId, courseId, regionKey, courseFingerprint
+                savedTripId, deviceId, courseId, regionKey, courseFingerprint, regionArea, imageUrl, reason
         );
     }
 
@@ -80,7 +87,7 @@ class SavedTripRepository {
         if (cursor == null) {
             return jdbcTemplate.query(
                     """
-                    SELECT saved_trip_id, course_id, region_key, created_at
+                    SELECT saved_trip_id, course_id, region_key, region_area, image_url, reason, created_at
                     FROM saved_trips
                     WHERE device_id = ?
                     ORDER BY created_at DESC, saved_trip_id DESC
@@ -93,7 +100,7 @@ class SavedTripRepository {
 
         return jdbcTemplate.query(
                 """
-                SELECT saved_trip_id, course_id, region_key, created_at
+                SELECT saved_trip_id, course_id, region_key, region_area, image_url, reason, created_at
                 FROM saved_trips
                 WHERE device_id = ?
                   AND (created_at, saved_trip_id) < (?, ?)

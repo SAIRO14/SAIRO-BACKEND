@@ -37,28 +37,6 @@
 
 ---
 
-## Q-06. 분석 결과 저장소와 TTL
-
-**상태:** 차단
-**막고 있는 것:** 분석 저장소 TTL·다중 인스턴스 대응 (#26, P0)
-**영향:** 추천 재조회 성공률, 서버 자원, 다중 인스턴스 배포
-
-`AnalysisStore`가 프로세스 메모리 `ConcurrentHashMap`이다.
-재시작하면 분석 ID가 사라지고, TTL이 없어 계속 쌓이며, 인스턴스가 여러 개면 동작하지 않는다.
-
-정해야 하는 것:
-
-- 저장소 (외부 캐시 / DB / 그 외)
-- TTL 길이
-- 만료된 분석 ID의 응답 (현재는 `ANALYSIS_NOT_FOUND` 404)
-
-**이 항목 자체가 #61에 걸려 있다.** #61(`POST /taste-analysis`로 분석·코스 생성 통합)은
-`GET /recommendations`를 제거하면서 `analysisId`가 필요 없어질 수 있다고 적었다.
-`analysisId`가 사라지면 저장소·TTL 설계의 전제가 통째로 바뀐다.
-**#61의 결론이 난 뒤에 정한다.**
-
----
-
 ## Q-08. 사진 풀 크기와 추천 지역 개수
 
 **상태:** 열림
@@ -114,5 +92,6 @@
 | 익명 사용자 ID 전달 방식 | `X-Device-Id` 헤더, UUID v4 | [ADR 0007](./decisions/0007-anonymous-device-id.md), [api-contract.md §4](./api-contract.md#4-소유권과-멱등성) |
 | 코스를 서버에 저장할 것인가 | `courses` 테이블에 저장하고 공유·저장이 참조 | [ADR 0010](./decisions/0010-course-persistence.md), [data-model.md](./data-model.md) |
 | 중복 저장 판정 기준 | `UNIQUE(익명 사용자 ID, 코스 지문)`. 지문은 장소 ID를 정렬해 해시하며 순서를 넣지 않는다 | [ADR 0011](./decisions/0011-saved-trip-identity.md), [data-model.md](./data-model.md) |
-| 일부 사진 ID가 유효하지 않을 때 | 중복 제거 후 고유 장수 5 미만 → 400 / 유효 장수 5 미만 → 400, 그 외는 유효한 것으로 진행 | `TasteAnalysisService.analyze` |
+| 일부 사진 ID가 유효하지 않을 때 | 중복 제거 후 고유 장수 5 미만 → 400 / 유효 장수 5 미만 → 400, 그 외는 유효한 것으로 진행 | `TasteAnalysisService.prepareInput` |
 | 공유 링크 만료와 코스 정리 | MVP는 만료 없음. 정리 배치도 두지 않고 `saved_trips`가 코스 삭제를 막는 동작을 의도로 유지한다 | [ADR 0014](./decisions/0014-share-link-lifetime.md), [PRD §12 #3](./PRD.md) |
+| 분석 결과 저장소와 TTL | `POST /taste-analysis`가 코스를 직접 반환하면서 `analysisId`가 주 흐름에서 사라졌다. `GET /recommendations`가 제거되면 `AnalysisStore`도 함께 제거한다. #26(P0) 작업은 사실상 해소됨. | #61 |
