@@ -19,6 +19,7 @@
 | **코스 카드** | 취향 분석 응답에 담기는 지역 단위 코스 요약. courseId·지역명·Day1·Day2를 포함한다 | `TasteAnalysisResponse.CourseCard` |
 | **장소** | 코스에 들어가는 개별 관광지 | `spots` 테이블, `Spot`, `spotId` |
 | **코스** | 지역 안의 장소를 Day 1·Day 2로 나눈 1박 2일 일정 | `courses` 테이블, `CourseResponse`, `day1`, `day2` |
+| **주변 장소** | 코스 관광지 인근의 식당·숙박·카페. TourAPI로 조회하며 코스의 장소와 구분된다 | 미구현 → [ADR 0016](./decisions/0016-self-built-course-with-nearby-places.md) |
 | **코스 스냅샷** | 지역과 Day 1·Day 2를 함께 담아 저장하는 형태 | `CourseSnapshot`, `course_data` |
 | **저장 여행지** | 사용자가 저장한 추천 지역과 그 시점의 코스 | `saved_trips` 테이블, `SavedTrip`, `savedTripId` |
 | **코스 지문** | 코스의 내용을 요약해 중복 저장을 판정하는 값 | `CourseFingerprint`, `course_fingerprint` |
