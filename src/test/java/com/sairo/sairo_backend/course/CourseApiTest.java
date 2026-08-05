@@ -32,6 +32,7 @@ class CourseApiTest extends IntegrationTestBase {
 
     @BeforeEach
     void setUp() {
+        // saved_trips가 courses를 FK(RESTRICT)로 참조한다. 반드시 먼저 지운다.
         jdbcTemplate.update("DELETE FROM saved_trips");
         jdbcTemplate.update("DELETE FROM shared_courses");
         jdbcTemplate.update("DELETE FROM courses");
@@ -501,6 +502,46 @@ class CourseApiTest extends IntegrationTestBase {
         mockMvc.perform(get("/courses/" + courseId).header("X-Device-Id", DEVICE_A))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.saved").value(true));
+    }
+
+    /**
+     * 판정 키가 courseId가 아니라 장소 구성(지문)이라는 것을 실제로 검증한다. (ADR 0011)
+     *
+     * <p>같은 장소로 새 코스를 만들어도 이미 저장된 코스가 있으면 saved=true다.
+     * courseId로 판정하는 구현으로 바꾸면 이 테스트가 즉시 실패한다.
+     */
+    @Test
+    void getCourse_withSameSpotsAsSavedCourse_returnsSavedTrue() throws Exception {
+        saveCourse(createCourse());
+        String recreated = createCourse(); // 같은 장소, 새 courseId
+
+        mockMvc.perform(get("/courses/" + recreated).header("X-Device-Id", DEVICE_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.saved").value(true));
+    }
+
+    // 다른 기기가 같은 장소 구성을 저장해도 내 코스는 saved=false다. (AGENTS.md §1)
+    @Test
+    void getCourse_otherDeviceSave_doesNotAffectOwnerSavedStatus() throws Exception {
+        String courseIdA = createCourse();
+
+        String deviceBBody = mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", DEVICE_B)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"regionName": "제주", "spotIds": ["spot-a", "spot-b", "spot-c", "spot-d"]}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        mockMvc.perform(post("/saved-trips")
+                        .header("X-Device-Id", DEVICE_B)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\": \"" + extract(deviceBBody, "courseId") + "\"}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/courses/" + courseIdA).header("X-Device-Id", DEVICE_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.saved").value(false));
     }
 
     // 저장 해제 후에는 saved=false로 돌아온다.

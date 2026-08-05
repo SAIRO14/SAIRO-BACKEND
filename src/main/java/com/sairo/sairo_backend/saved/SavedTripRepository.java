@@ -112,11 +112,12 @@ class SavedTripRepository {
         );
     }
 
+    /** (device_id, course_fingerprint) 유니크 인덱스를 그대로 타는 단순 존재 확인이다. */
     boolean existsByDeviceIdAndFingerprint(String deviceId, String fingerprint) {
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM saved_trips WHERE device_id = ? AND course_fingerprint = ?",
-                Integer.class, deviceId, fingerprint);
-        return count != null && count > 0;
+        Boolean exists = jdbcTemplate.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM saved_trips WHERE device_id = ? AND course_fingerprint = ?)",
+                Boolean.class, deviceId, fingerprint);
+        return Boolean.TRUE.equals(exists);
     }
 
     /**

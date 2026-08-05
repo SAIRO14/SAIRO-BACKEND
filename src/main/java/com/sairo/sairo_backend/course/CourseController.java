@@ -64,6 +64,10 @@ public class CourseController {
                     `GET /places/{spotId}`를 호출한다.
 
                     **자기가 만든 코스만 조회할 수 있다.** 남의 코스는 없는 것과 같게 404다.
+
+                    `saved`는 이 기기가 같은 장소 구성의 코스를 저장했는지 나타낸다.
+                    판정 키는 `courseId`가 아니라 장소 구성이므로, 저장한 적 없는 `courseId`라도
+                    같은 장소로 만든 코스가 저장돼 있으면 `true`가 된다. (ADR 0011)
                     """
     )
     @ApiResponses({

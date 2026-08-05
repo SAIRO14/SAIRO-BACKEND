@@ -2,6 +2,7 @@ package com.sairo.sairo_backend.course;
 
 import com.sairo.sairo_backend.common.BusinessException;
 import com.sairo.sairo_backend.common.ErrorCode;
+import com.sairo.sairo_backend.saved.SavedTripService;
 import com.sairo.sairo_backend.spot.SpotRepository;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -42,7 +43,7 @@ class CourseServiceTest {
 
         CourseService service = new CourseService(
                 mock(SpotRepository.class), courseRepository, sharedCourseRepository,
-                mock(com.sairo.sairo_backend.saved.SavedTripService.class), new ObjectMapper());
+                mock(SavedTripService.class), new ObjectMapper());
 
         assertThatThrownBy(() -> service.shareCourse(DEVICE, "course-1"))
                 .isInstanceOf(BusinessException.class)
@@ -58,7 +59,7 @@ class CourseServiceTest {
 
         CourseService service = new CourseService(
                 mock(SpotRepository.class), courseRepository, mock(SharedCourseRepository.class),
-                mock(com.sairo.sairo_backend.saved.SavedTripService.class), new ObjectMapper());
+                mock(SavedTripService.class), new ObjectMapper());
 
         assertThatThrownBy(() -> service.shareCourse(DEVICE, "nope"))
                 .isInstanceOf(BusinessException.class)

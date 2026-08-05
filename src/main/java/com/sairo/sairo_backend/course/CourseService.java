@@ -40,7 +40,15 @@ public class CourseService {
             throw new BusinessException(ErrorCode.INSUFFICIENT_SPOTS, "유효한 장소가 2개 이상 필요합니다.");
         }
         String regionName = resolveRegionName(request.regionName(), spots);
-        return buildFromSpots(deviceId, regionName, spots, null, null, null);
+        CourseResponse base = buildFromSpots(deviceId, regionName, spots, null, null, null);
+        // 판정 키는 courseId가 아니라 장소 구성(지문)이다. 같은 장소로 이전에 만든 코스가
+        // 저장돼 있으면 방금 발급된 courseId라도 saved=true여야 한다. (ADR 0011)
+        CourseSnapshot snapshot = new CourseSnapshot(
+                base.regionName(), base.regionArea(), base.imageUrl(), base.reason(),
+                base.day1(), base.day2());
+        boolean saved = savedTripService.isSaved(deviceId, snapshot);
+        return new CourseResponse(base.courseId(), base.regionName(), base.regionArea(),
+                base.imageUrl(), base.reason(), saved, base.day1(), base.day2());
     }
 
     /**

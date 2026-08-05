@@ -15,6 +15,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SavedTripService {
 
+    // CourseRepository만 의존하고 CourseService는 보지 않는다.
+    // CourseService → SavedTripService(isSaved)가 이미 있어, CourseService를 여기서 주입하면
+    // 빈 사이클로 기동이 실패한다.
     private final SavedTripRepository savedTripRepository;
     private final CourseRepository courseRepository;
     private final ObjectMapper objectMapper;
