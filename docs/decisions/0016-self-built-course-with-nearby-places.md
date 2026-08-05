@@ -2,7 +2,7 @@
 
 - **상태:** 수용됨
 - **날짜:** 2026-08-05
-- **관련:** 이슈 #51, 2026-08-03 2차 회의, [ADR 0008](./0008-greedy-nearest-neighbor-course-sort.md), [ADR 0009](./0009-tourapi-curated-course-source.md)(대체)
+- **관련:** 이슈 #51, 2026-08-03 2차 회의, [ADR 0008](./0008-greedy-nearest-neighbor-course-sort.md), [ADR 0009](./0009-tourapi-curated-course-source.md)(대체), [ADR 0015](./0015-eager-course-creation.md)
 
 ## 맥락
 
@@ -86,7 +86,15 @@ TourAPI의 주변 조회는 점 + 반경(`mapX`/`mapY`/`radius`)이라 영역 �
 > **최적화 아이디어로 남겨둔다.** 호출 횟수는 어차피 관광지 수만큼이라 이득이 크지 않고,
 > "감싸는 영역"의 모양(bounding box인지 회랑인지, 회랑이면 폭이 얼마인지)이 정해지지 않았다.
 
-거리는 코스 정렬과 같은 기준을 쓴다 — **직선거리(haversine)** ([ADR 0008](./0008-greedy-nearest-neighbor-course-sort.md)).
+**반경 판정은 TourAPI에 맡긴다.** 3km는 `radius` 파라미터(미터)로 넘기고 우리가 거리를 계산하지 않는다.
+
+> **코스 정렬의 거리 기준을 여기에 가져다 쓰면 안 된다.**
+> `CourseService`가 쓰는 값은 위경도 차의 **제곱합(유클리드)** 이고
+> [recommendation.md](../recommendation.md)가 적어둔 대로 실제 지구 거리가 아니다.
+> **순서를 정하는 용도라 단조 관계만 유지되면 충분해서** 제곱근도 생략한다.
+> 절대 거리인 "3km"를 그 값으로 판정할 수 없다.
+> 우리 쪽에서 거리 계산이 필요해지면(예: 중복 제거 시 근접 장소 병합)
+> 그때는 **haversine 같은 실제 거리 함수를 새로 들여야 한다.** 기존 함수를 재사용하지 않는다.
 
 이 결정으로 [ADR 0009](./0009-tourapi-curated-course-source.md)를 **대체**한다.
 TourAPI는 계속 쓰지만 용도가 바뀌었다.
