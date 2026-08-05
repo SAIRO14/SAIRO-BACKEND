@@ -106,13 +106,9 @@
 | 저장 생성 | POST | `/saved-trips` | 구현됨 |
 | 저장 목록 | GET | `/saved-trips?cursor={커서}&size=20` | 구현됨 |
 | 저장 해제 | DELETE | `/saved-trips?savedTripId={id}` | 구현됨 |
-| 저장 상태 조회 | - | - | 미구현 |
+| 저장 상태 조회 | GET | `/courses/{courseId}`, POST `/taste-analysis` | 구현됨 |
 
 익명 사용자 ID는 `X-Device-Id` 헤더로 받는다. → [api-contract.md §4](./api-contract.md#4-소유권과-멱등성)
-남은 저장 상태 조회의 URI는 구현할 때 정한다.
-**식별자를 URL 경로에 두지 않는다**는 제약만 지키면 된다.
-저장 생성이 `/saved-trips`로 정해졌으므로 나머지도 이 경로 아래에 둔다.
-저장 목록이 커서를, 저장 해제가 `savedTripId`를 경로가 아니라 쿼리 파라미터로 받는 것이 이 제약 때문이다.
 
 **이 제약에 딸린 비용이 하나 있다.** 쿼리 스트링은 액세스 로그·프록시·브라우저 히스토리에
 기본적으로 남는다. 경로에서 뺀 식별자가 그쪽으로 흘러가므로, 노출 자리를 옮긴 것이지 없앤 것은 아니다.
@@ -142,7 +138,6 @@ ADR을 가리킨다. 표에 남겨두면 아직 할 일로 읽히기 때문이�
 
 | 우선순위 | 영역 | 현재 | 필요한 변경 |
 |---|---|---|---|
-| P0 | 저장 여행지 | 저장 생성·목록 조회·해제 구현 | 저장 상태 반영 |
 | P1 | 장소 보완 | 정보 하나만 있어도 완전하다고 판단 | 결측 필드별로 TourAPI 보완 |
 | P2 | 데이터 import | 절대 경로와 DB 비밀번호 하드코딩 | CLI 인자와 환경 변수 사용 |
 
@@ -160,7 +155,8 @@ ADR을 가리킨다. 표에 남겨두면 아직 할 일로 읽히기 때문이�
 추천 응답 지역 카드 구조 변경 (RegionCard · 장소 2개 미만 지역 제외 · 대표 장소 2개 미리보기 · 추천 이유),
 저장 여행지 생성과 중복 판정([ADR 0011](./decisions/0011-saved-trip-identity.md)),
 저장 목록 커서 페이지([api-contract §5](./api-contract.md#5-커서-페이지네이션)),
-코스 소유권([ADR 0012](./decisions/0012-course-ownership.md)).
+코스 소유권([ADR 0012](./decisions/0012-course-ownership.md)),
+저장 상태 조회 (`GET /courses/{courseId}` · `POST /taste-analysis` `saved` 필드, [#33](https://github.com/SAIRO14/SAIRO-BACKEND/issues/33)).
 
 ## 7. MVP 완료 조건
 

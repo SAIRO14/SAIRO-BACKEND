@@ -2,6 +2,7 @@ package com.sairo.sairo_backend.course;
 
 import com.sairo.sairo_backend.common.BusinessException;
 import com.sairo.sairo_backend.common.ErrorCode;
+import com.sairo.sairo_backend.saved.SavedTripService;
 import com.sairo.sairo_backend.spot.Spot;
 import com.sairo.sairo_backend.spot.SpotRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ public class CourseService {
     private final SpotRepository spotRepository;
     private final CourseRepository courseRepository;
     private final SharedCourseRepository sharedCourseRepository;
+    private final SavedTripService savedTripService;
     private final ObjectMapper objectMapper;
 
     @Value("${app.share-base-url:https://sairo.app/shared}")
@@ -55,9 +57,10 @@ public class CourseService {
         List<SpotSummary> day1 = sorted.subList(0, mid).stream().map(SpotSummary::from).collect(Collectors.toList());
         List<SpotSummary> day2 = sorted.subList(mid, sorted.size()).stream().map(SpotSummary::from).collect(Collectors.toList());
         String courseId = UUID.randomUUID().toString();
-        courseRepository.save(courseId, deviceId, objectMapper.writeValueAsString(
-                new CourseSnapshot(regionName, regionArea, imageUrl, reason, day1, day2)));
-        return new CourseResponse(courseId, regionName, regionArea, imageUrl, reason, day1, day2);
+        CourseSnapshot snapshot = new CourseSnapshot(regionName, regionArea, imageUrl, reason, day1, day2);
+        courseRepository.save(courseId, deviceId, objectMapper.writeValueAsString(snapshot));
+        return new CourseResponse(courseId, regionName, regionArea, imageUrl, reason,
+                savedTripService.isSaved(deviceId, snapshot), day1, day2);
     }
 
     /**
@@ -101,8 +104,9 @@ public class CourseService {
 
         try {
             CourseSnapshot snapshot = objectMapper.readValue(json, CourseSnapshot.class);
+            boolean saved = savedTripService.isSaved(deviceId, snapshot);
             return new CourseResponse(courseId, snapshot.regionName(), snapshot.regionArea(),
-                    snapshot.imageUrl(), snapshot.reason(), snapshot.day1(), snapshot.day2());
+                    snapshot.imageUrl(), snapshot.reason(), saved, snapshot.day1(), snapshot.day2());
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "코스 데이터 역직렬화 실패", e);
         }
