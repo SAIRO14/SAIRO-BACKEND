@@ -18,13 +18,14 @@
 | [0006](./0006-pgvector-vector-search.md) | pgvector 벡터 유사도 검색 | 수용됨 | 2026-07-25 |
 | [0007](./0007-anonymous-device-id.md) | 익명 기기 ID (X-Device-Id) 인증 방식 | 수용됨 | 2026-07-25 |
 | [0008](./0008-greedy-nearest-neighbor-course-sort.md) | Greedy Nearest-Neighbor 코스 정렬 | 수용됨 | 2026-07-25 |
-| [0009](./0009-tourapi-curated-course-source.md) | 한국관광공사 TourAPI contentTypeId=25 데이터 소스 | 수용됨 | 2026-07-25 |
+| [0009](./0009-tourapi-curated-course-source.md) | 한국관광공사 TourAPI contentTypeId=25 데이터 소스 | 대체됨 (0016) | 2026-07-23 |
 | [0010](./0010-course-persistence.md) | 코스를 서버에 영속화 | 수용됨 | 2026-07-26 |
 | [0011](./0011-saved-trip-identity.md) | 저장 여행지의 중복 판정은 장소 구성으로 | 수용됨 | 2026-07-30 |
 | [0012](./0012-course-ownership.md) | 코스에 소유자를 둔다 | 수용됨 | 2026-07-30 |
 | [0013](./0013-id-format-validation.md) | ID 형식 검증은 값의 위치가 아니라 거짓 응답 가능성으로 정한다 | 수용됨 | 2026-08-01 |
 | [0014](./0014-share-link-lifetime.md) | 공유 링크와 코스를 MVP에서 만료시키지 않는다 | 수용됨 | 2026-08-01 |
 | [0015](./0015-eager-course-creation.md) | 취향 분석 시 코스를 즉시 생성한다 | 수용됨 | 2026-08-03 |
+| [0016](./0016-self-built-course-with-nearby-places.md) | 코스는 자체 스팟으로, 주변 장소는 TourAPI로 | 수용됨 | 2026-08-05 |
 
 ## 언제 ADR을 쓰나
 
