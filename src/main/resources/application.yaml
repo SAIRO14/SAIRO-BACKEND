@@ -12,6 +12,19 @@ spring:
     baseline-version: 1
     validate-on-migrate: true
 
+  # 쿼리 실행 상한은 PostgreSQL 서버 측 statement_timeout으로 건다 (ADR 0017).
+  # JPA 힌트(jakarta.persistence.query.timeout)는 JdbcTemplate 경로를 덮지 못하는데
+  # 정작 무거운 pgvector 조회가 그쪽이다(PhotoEmbeddingRepository).
+  #
+  # 주의: Flyway가 같은 데이터소스를 쓰므로 마이그레이션도 이 상한에 걸린다.
+  #      오래 걸리는 마이그레이션은 스크립트 안에서 SET LOCAL statement_timeout = 0으로 푼다.
+  datasource:
+    hikari:
+      # 커넥션 획득 상한. statement_timeout과 다른 축이다 — 이건 풀에서 커넥션을 못 받을 때다.
+      connection-timeout: 5000
+      data-source-properties:
+        options: "-c statement_timeout=5000"
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -21,6 +34,12 @@ spring:
 
 server:
   port: 8080
+
+# TourAPI 호출 상한. 값의 근거와 재시도 정책은 ADR 0017에 있다.
+# base-url과 service-key는 프로파일별 설정에 둔다 — 키는 커밋하지 않는다.
+tour-api:
+  connect-timeout: 3s
+  read-timeout: 5s
 
 # 오류 응답의 traceId와 서버 로그를 이어 붙이기 위한 패턴 (TraceIdFilter가 MDC에 넣는다)
 logging:
