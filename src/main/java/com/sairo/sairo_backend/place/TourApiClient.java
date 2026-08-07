@@ -10,8 +10,6 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 
 import java.net.http.HttpClient;
-import java.net.http.HttpConnectTimeoutException;
-import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.Optional;
 
@@ -27,12 +25,14 @@ public class TourApiClient {
 
     private final RestClient restClient;
     private final String serviceKey;
+    private final Duration retryElapsedLimit;
 
     public TourApiClient(
             @Value("${tour-api.base-url}") String baseUrl,
             @Value("${tour-api.service-key}") String serviceKey,
-            @Value("${tour-api.connect-timeout:3s}") Duration connectTimeout,
-            @Value("${tour-api.read-timeout:5s}") Duration readTimeout
+            @Value("${tour-api.connect-timeout}") Duration connectTimeout,
+            @Value("${tour-api.read-timeout}") Duration readTimeout,
+            @Value("${tour-api.retry-elapsed-limit}") Duration retryElapsedLimit
     ) {
         // RestClient.builder()는 맨 빌더라 타임아웃이 붙지 않는다. 기반인 JDK HttpClient의
         // 기본 리드 타임아웃이 무한이라 요청 팩토리를 직접 만들어 상한을 건다 (ADR 0017).
@@ -45,6 +45,7 @@ public class TourApiClient {
                 .requestFactory(requestFactory)
                 .build();
         this.serviceKey = serviceKey;
+        this.retryElapsedLimit = retryElapsedLimit;
     }
 
     public record TourDetail(String operatingHours, String closedDays, String parking, String contact) {}
@@ -54,10 +55,12 @@ public class TourApiClient {
      * (api-contract.md §6 부분 실패 처리).
      */
     public Optional<TourDetail> fetchDetail(String contentId) {
+        long start = System.nanoTime();
+
         try {
             return attemptFetch(contentId);
         } catch (Exception e) {
-            if (!isRetryable(e)) {
+            if (!shouldRetry(e, Duration.ofNanos(System.nanoTime() - start))) {
                 log.warn("TourAPI 호출 실패 contentId={}: {}", contentId, e.getMessage());
                 return Optional.empty();
             }
@@ -73,22 +76,24 @@ public class TourApiClient {
     }
 
     /**
-     * 재시도는 커넥트 실패와 5xx에만 건다. **리드 타임아웃은 재시도하지 않는다** —
-     * 상대가 느리다는 뜻이라 한 번 더 보내면 그 한 건이 코스당 외부 호출 예산을 혼자 쓴다
-     * (ADR 0017).
+     * 재시도 여부는 <b>예외 종류와 남은 시간</b> 둘 다로 판단한다 (ADR 0017).
+     *
+     * <p>종류는 "다시 보내볼 가치가 있는가"만 가른다 — 5xx와 IO 오류는 순간적인 문제일 수 있지만
+     * 4xx는 같은 요청을 보내도 결과가 같다.
+     *
+     * <p>시간이 실제 제약이다. 첫 시도가 {@code retryElapsedLimit}을 넘겨 실패했다면 상대가
+     * <b>느리다</b>는 뜻이라 재시도하지 않는다. 리드 타임아웃(5초)으로 끝난 시도와 5초를 끌다
+     * 500을 뱉은 시도는 <b>같은 비용을 쓴 것</b>이므로 같게 다룬다. 예외 종류로 가르면
+     * 이 둘이 갈려 근거와 코드가 어긋난다.
+     *
+     * <p>이 규칙이 한 번의 {@code fetchDetail}에 상한을 준다 —
+     * <b>{@code retryElapsedLimit} + 리드 타임아웃</b>(기본값으로 3초 + 5초 = 8초)이다.
+     * 리드 타임아웃이 커넥트를 포함한 시도 전체의 데드라인이라 한 시도가 그 값을 넘지 못한다.
      */
-    private boolean isRetryable(Exception e) {
-        if (e instanceof HttpServerErrorException) return true;
+    boolean shouldRetry(Exception e, Duration elapsed) {
+        if (elapsed.compareTo(retryElapsedLimit) > 0) return false;
 
-        if (e instanceof ResourceAccessException accessException) {
-            Throwable cause = accessException.getCause();
-            // HttpConnectTimeoutException이 HttpTimeoutException의 하위 타입이라 순서가 중요하다.
-            if (cause instanceof HttpConnectTimeoutException) return true;
-            if (cause instanceof HttpTimeoutException) return false;
-            return true;
-        }
-
-        return false;
+        return e instanceof HttpServerErrorException || e instanceof ResourceAccessException;
     }
 
     private Optional<TourDetail> attemptFetch(String contentId) {

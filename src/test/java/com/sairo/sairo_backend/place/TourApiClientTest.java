@@ -4,14 +4,23 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.http.HttpConnectTimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -27,6 +36,7 @@ class TourApiClientTest {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofMillis(300);
     private static final Duration READ_TIMEOUT = Duration.ofMillis(300);
+    private static final Duration RETRY_ELAPSED_LIMIT = Duration.ofMillis(100);
 
     private HttpServer server;
     private final AtomicInteger callCount = new AtomicInteger();
@@ -47,8 +57,23 @@ class TourApiClientTest {
     void readTimeoutIsNotRetried() {
         TourApiClient client = startWith(exchange -> {
             callCount.incrementAndGet();
-            sleep(READ_TIMEOUT.toMillis() * 4);
+            sleep(READ_TIMEOUT.toMillis() * 2);
             respond(exchange, 200, "{}");
+        });
+
+        Optional<TourApiClient.TourDetail> result = client.fetchDetail("spot-1");
+
+        assertThat(result).isEmpty();
+        assertThat(callCount.get()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("느리게 실패한 5xx는 재시도하지 않는다 — 리드 타임아웃과 같은 비용을 썼다")
+    void slowServerErrorIsNotRetried() {
+        TourApiClient client = startWith(exchange -> {
+            callCount.incrementAndGet();
+            sleep(RETRY_ELAPSED_LIMIT.toMillis() * 2);
+            respond(exchange, 500, "{}");
         });
 
         Optional<TourApiClient.TourDetail> result = client.fetchDetail("spot-1");
@@ -103,11 +128,67 @@ class TourApiClientTest {
         assertThat(callCount.get()).isEqualTo(1);
     }
 
+    /**
+     * 실제 커넥트 타임아웃은 환경에 따라 재현이 들쭉날쭉하므로 판단 함수를 직접 검증한다.
+     * 서버를 띄우는 위 테스트들이 덮지 못하는 갈래다.
+     */
+    @Nested
+    @DisplayName("shouldRetry — 예외 종류와 남은 시간")
+    class ShouldRetry {
+
+        private final TourApiClient client = clientFor("http://127.0.0.1:1");
+
+        private final Duration fast = RETRY_ELAPSED_LIMIT.dividedBy(2);
+        private final Duration slow = RETRY_ELAPSED_LIMIT.multipliedBy(2);
+
+        @Test
+        @DisplayName("빠른 커넥트 타임아웃은 재시도한다")
+        void fastConnectTimeout() {
+            Exception e = new ResourceAccessException("연결 실패", new HttpConnectTimeoutException("connect timed out"));
+
+            assertThat(client.shouldRetry(e, fast)).isTrue();
+        }
+
+        @Test
+        @DisplayName("빠른 5xx는 재시도한다")
+        void fastServerError() {
+            Exception e = HttpServerErrorException.create(
+                    HttpStatus.INTERNAL_SERVER_ERROR, "", HttpHeaders.EMPTY, new byte[0], null);
+
+            assertThat(client.shouldRetry(e, fast)).isTrue();
+        }
+
+        @Test
+        @DisplayName("4xx는 빨라도 재시도하지 않는다 — 다시 보내도 결과가 같다")
+        void clientErrorIsNeverRetried() {
+            Exception e = HttpClientErrorException.create(
+                    HttpStatus.BAD_REQUEST, "", HttpHeaders.EMPTY, new byte[0], null);
+
+            assertThat(client.shouldRetry(e, fast)).isFalse();
+        }
+
+        @Test
+        @DisplayName("느리게 실패했으면 종류를 가리지 않고 재시도하지 않는다")
+        void slowFailureIsNotRetried() {
+            Exception readTimeout = new ResourceAccessException("응답 없음", new HttpTimeoutException("request timed out"));
+            Exception serverError = HttpServerErrorException.create(
+                    HttpStatus.SERVICE_UNAVAILABLE, "", HttpHeaders.EMPTY, new byte[0], null);
+
+            assertThat(client.shouldRetry(readTimeout, slow)).isFalse();
+            assertThat(client.shouldRetry(serverError, slow)).isFalse();
+        }
+    }
+
     private TourApiClient startWith(Consumer<com.sun.net.httpserver.HttpExchange> handler) {
+        // 기본 실행자는 stop(0)이 잠든 디스패처 스레드를 join하느라 테스트를 붙잡는다.
+        server.setExecutor(Executors.newCachedThreadPool());
         server.createContext("/", handler::accept);
         server.start();
-        String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
-        return new TourApiClient(baseUrl, "test-key", CONNECT_TIMEOUT, READ_TIMEOUT);
+        return clientFor("http://127.0.0.1:" + server.getAddress().getPort());
+    }
+
+    private static TourApiClient clientFor(String baseUrl) {
+        return new TourApiClient(baseUrl, "test-key", CONNECT_TIMEOUT, READ_TIMEOUT, RETRY_ELAPSED_LIMIT);
     }
 
     private static String detailJson() {
