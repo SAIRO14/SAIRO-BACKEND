@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
 """One-time data import: deduped_results.json (photos) + spots_phase1_checkpoint.json (spots)"""
 
+import argparse
 import json
-import re
+import os
 import sys
-import psycopg2
-
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5433,
-    "dbname": "sairo",
-    "user": "postgres",
-    "password": "sairo1234",
-}
+from pathlib import Path
 
 # spots addr1 first-word → canonical form matching photo location format
 REGION_NORM = {
@@ -45,7 +38,47 @@ PROVINCE_ABBR = {
     "제주특별자치도": "제주",
 }
 
-PROJECT_ROOT = "/Users/limchaeryun/Desktop/sairo-backend"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="SAIRO initial data importer")
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path(os.getenv("SAIRO_DATA_DIR", PROJECT_ROOT / "data")),
+        help="directory containing the default photos and spots JSON files",
+    )
+    parser.add_argument(
+        "--photos",
+        type=Path,
+        default=Path(os.environ["PHOTOS_DATA_PATH"]) if os.getenv("PHOTOS_DATA_PATH") else None,
+        help="path to deduped_results.json (overrides --data-dir)",
+    )
+    parser.add_argument(
+        "--spots",
+        type=Path,
+        default=Path(os.environ["SPOTS_DATA_PATH"]) if os.getenv("SPOTS_DATA_PATH") else None,
+        help="path to spots_phase1_checkpoint.json (overrides --data-dir)",
+    )
+    return parser.parse_args()
+
+
+def required_env(name: str) -> str:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        raise RuntimeError(f"{name} environment variable is required")
+    return value
+
+
+def db_config() -> dict:
+    return {
+        "host": os.getenv("DB_HOST", "localhost"),
+        "port": int(os.getenv("DB_PORT", "5433")),
+        "dbname": os.getenv("DB_NAME", "sairo"),
+        "user": os.getenv("DB_USER", "postgres"),
+        "password": required_env("DB_PASSWORD"),
+    }
 
 
 def to_vector_literal(floats: list) -> str:
@@ -143,16 +176,25 @@ def import_spots(cur, data: list) -> int:
 
 
 def main():
+    args = parse_args()
+    photos_path = args.photos or args.data_dir / "deduped_results.json"
+    spots_path = args.spots or args.data_dir / "spots_phase1_checkpoint.json"
+
+    try:
+        import psycopg2
+    except ModuleNotFoundError as error:
+        raise RuntimeError("psycopg2 is required to import data") from error
+
     print("Loading JSON files...")
-    with open(f"{PROJECT_ROOT}/deduped_results.json") as f:
+    with photos_path.open(encoding="utf-8") as f:
         photos_data = json.load(f)
-    with open(f"{PROJECT_ROOT}/spots_phase1_checkpoint.json") as f:
+    with spots_path.open(encoding="utf-8") as f:
         spots_data = json.load(f)
 
     print(f"  photos: {len(photos_data)} items")
     print(f"  spots:  {len(spots_data)} items")
 
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = psycopg2.connect(**db_config())
     conn.autocommit = False
     cur = conn.cursor()
 
