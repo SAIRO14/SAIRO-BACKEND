@@ -150,12 +150,14 @@ pg_restore --list /path/to/sairo-YYYYMMDDTHHMMSSZ.dump
 
 `.github/workflows/cd.yml`은 전체 Gradle build와 test를 통과한 뒤 AMD64 애플리케이션 이미지를
 만든다. PR에서는 여기까지 실행해 Dockerfile을 검증한다. `main`에 반영되면 GitHub-hosted runner가
-같은 이미지를 artifact로 올리고, app VM의 self-hosted runner가 artifact만 내려받아 배포한다.
+이미지·배포 스크립트·Compose·Caddy를 checksum과 함께 artifact로 올리고, app VM의 self-hosted
+runner가 검증한 bundle만 내려받아 배포한다. 운영 runner에서는 저장소를 checkout하지 않는다.
 1GB VM에서는 Gradle이나 Docker 이미지 빌드를 실행하지 않는다.
 
 app VM의 runner는 GitHub로 outbound 연결만 만들기 때문에 GitHub Actions IP를 위해 SSH 22번을
-추가로 공개할 필요가 없다. 이 저장소는 private이며 배포 job은 PR에서 실행되지 않고 `main` push와
-수동 실행에만 동작한다.
+추가로 공개할 필요가 없다. 이 저장소는 private이며 배포 job은 PR에서 실행되지 않고 `main`에서
+발생한 push나 수동 실행에만 동작한다. 대기 중 더 최신 `main` commit이 생기면 오래된 job은 배포를
+건너뛴다. bundle은 실패 조사와 수동 복구를 위해 7일간 보관한다.
 
 ### 최초 runner 등록
 
@@ -184,7 +186,12 @@ VM의 `/opt/sairo/.env.app`에만 둔다.
 
 배포 job은 image checksum을 검증하고 `/opt/sairo`의 Compose/Caddy 설정을 갱신한 뒤 backend가
 Docker health check를 통과할 때까지 기다린다. 그 다음 Caddy를 재생성하고 공개 health URL까지
-확인한다. 어느 단계든 실패하면 직전 Compose/Caddy 파일과 실행 이미지를 다시 올린다.
+응답 본문의 `status: UP`을 확인한다. 어느 단계든 실패하거나 종료 신호를 받으면 직전
+Compose/Caddy 파일과 실행 이미지를 다시 올리고 rollback health check까지 수행한다. 성공한 이미지
+tag는 `/opt/sairo/.last-good-image`에도 기록해 현재 컨테이너 조회가 실패할 때 사용한다.
 
 production 환경에 승인자를 추가하려면 GitHub `Settings > Environments > production`에서 보호
-규칙을 설정한다. 같은 환경의 배포는 동시에 하나만 실행되며 진행 중인 배포를 취소하지 않는다.
+규칙을 설정한다. 현재 private 저장소의 GitHub Free 플랜에서는 required reviewer와 branch
+protection을 사용할 수 없으므로 production의 허용 branch를 `main`으로 제한하고, 저장소 write/admin
+권한은 꼭 필요한 사용자에게만 부여한다. 같은 환경의 배포는 동시에 하나만 실행되며 진행 중인
+배포를 취소하지 않는다.

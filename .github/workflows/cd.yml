@@ -42,28 +42,31 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Compress and checksum image
-        working-directory: ${{ runner.temp }}
+      - name: Prepare deploy bundle
+        env:
+          BUNDLE_DIR: ${{ runner.temp }}/sairo-deploy-bundle
         run: |
-          gzip -1 sairo-backend.tar
-          sha256sum sairo-backend.tar.gz > sairo-backend.tar.gz.sha256
+          install -d -m 0755 "$BUNDLE_DIR"
+          gzip -1 -c "${{ runner.temp }}/sairo-backend.tar" > "$BUNDLE_DIR/sairo-backend.tar.gz"
+          install -m 0755 deploy/deploy-app.sh "$BUNDLE_DIR/deploy-app.sh"
+          install -m 0644 deploy/compose.app.yaml deploy/Caddyfile "$BUNDLE_DIR/"
+          cd "$BUNDLE_DIR"
+          sha256sum sairo-backend.tar.gz deploy-app.sh compose.app.yaml Caddyfile > SHA256SUMS
 
       - name: Upload deploy artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sairo-backend-${{ github.sha }}
-          path: |
-            ${{ runner.temp }}/sairo-backend.tar.gz
-            ${{ runner.temp }}/sairo-backend.tar.gz.sha256
+          path: ${{ runner.temp }}/sairo-deploy-bundle/
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
           compression-level: 0
 
   deploy-production:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build-image
     runs-on: [self-hosted, Linux, X64, sairo-deploy]
-    timeout-minutes: 10
+    timeout-minutes: 20
     concurrency:
       group: production
       cancel-in-progress: false
@@ -72,24 +75,57 @@ jobs:
       url: ${{ vars.DEPLOY_HEALTH_URL }}
 
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check this is still the latest main commit
+        id: main_tip
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          latest_sha="$(
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$REPOSITORY/git/ref/heads/main" \
+              | python3 -c 'import json, sys; print(json.load(sys.stdin)["object"]["sha"])'
+          )"
+
+          if [[ "$latest_sha" == "$EXPECTED_SHA" ]]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping stale deployment for $EXPECTED_SHA; main is now $latest_sha."
+          fi
 
       - name: Download deploy artifact
+        if: steps.main_tip.outputs.deploy == 'true'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: sairo-backend-${{ github.sha }}
-          path: ${{ runner.temp }}/sairo-image
+          path: ${{ runner.temp }}/sairo-deploy-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Verify artifact checksum
-        working-directory: ${{ runner.temp }}/sairo-image
-        run: sha256sum --check sairo-backend.tar.gz.sha256
+      - name: Verify deploy bundle checksums
+        if: steps.main_tip.outputs.deploy == 'true'
+        working-directory: ${{ runner.temp }}/sairo-deploy-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          sha256sum --check SHA256SUMS
+          chmod 0755 deploy-app.sh
 
       - name: Deploy and verify health
+        if: steps.main_tip.outputs.deploy == 'true'
         env:
           DEPLOY_HEALTH_URL: ${{ vars.DEPLOY_HEALTH_URL }}
           IMAGE_TAG: sairo-backend:${{ github.sha }}
+          BUNDLE_DIR: ${{ runner.temp }}/sairo-deploy-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          deploy/deploy-app.sh \
-            "${{ runner.temp }}/sairo-image/sairo-backend.tar.gz" \
+          "$BUNDLE_DIR/deploy-app.sh" \
+            "$BUNDLE_DIR/sairo-backend.tar.gz" \
             "$IMAGE_TAG" \
             "$DEPLOY_HEALTH_URL"
+
+      - name: Remove deploy bundle
+        if: always()
+        env:
+          BUNDLE_DIR: ${{ runner.temp }}/sairo-deploy-${{ github.run_id }}-${{ github.run_attempt }}
+        run: rm -rf -- "$BUNDLE_DIR"
