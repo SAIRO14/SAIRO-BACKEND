@@ -187,18 +187,8 @@ resource "oci_core_network_security_group_security_rule" "db_egress" {
   description               = "Database VM outbound traffic"
 }
 
-data "oci_core_images" "ubuntu" {
-  compartment_id           = var.tenancy_ocid
-  operating_system         = "Canonical Ubuntu"
-  operating_system_version = "24.04"
-  shape                    = "VM.Standard.E2.1.Micro"
-  sort_by                  = "TIMECREATED"
-  sort_order               = "DESC"
-}
-
 locals {
   availability_domain = data.oci_identity_availability_domains.available.availability_domains[0].name
-  ubuntu_image_id     = data.oci_core_images.ubuntu.images[0].id
   common_metadata = {
     ssh_authorized_keys = trimspace(file(var.ssh_public_key_path))
     user_data           = base64encode(file("${path.module}/cloud-init.yaml"))
@@ -224,7 +214,7 @@ resource "oci_core_instance" "app" {
   }
 
   source_details {
-    source_id               = local.ubuntu_image_id
+    source_id               = var.ubuntu_image_ocid
     source_type             = "image"
     boot_volume_size_in_gbs = 50
     boot_volume_vpus_per_gb = 10
@@ -232,6 +222,10 @@ resource "oci_core_instance" "app" {
 
   metadata      = local.common_metadata
   freeform_tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [metadata["ssh_authorized_keys"], metadata["user_data"]]
+  }
 }
 
 resource "oci_core_instance" "db" {
@@ -249,7 +243,7 @@ resource "oci_core_instance" "db" {
   }
 
   source_details {
-    source_id               = local.ubuntu_image_id
+    source_id               = var.ubuntu_image_ocid
     source_type             = "image"
     boot_volume_size_in_gbs = 50
     boot_volume_vpus_per_gb = 10
@@ -257,4 +251,9 @@ resource "oci_core_instance" "db" {
 
   metadata      = local.common_metadata
   freeform_tags = local.common_tags
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [metadata["ssh_authorized_keys"], metadata["user_data"]]
+  }
 }

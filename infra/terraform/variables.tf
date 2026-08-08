@@ -29,3 +29,13 @@ variable "ssh_public_key_path" {
   description = "Compute 인스턴스에 등록할 SSH 공개키 경로"
   type        = string
 }
+
+variable "ubuntu_image_ocid" {
+  description = "두 VM에 사용할 고정 Ubuntu 24.04 이미지 OCID"
+  type        = string
+
+  validation {
+    condition     = startswith(var.ubuntu_image_ocid, "ocid1.image.")
+    error_message = "ubuntu_image_ocid는 OCI 이미지 OCID여야 합니다."
+  }
+}

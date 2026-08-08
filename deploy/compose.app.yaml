@@ -1,3 +1,5 @@
+name: sairo
+
 services:
   backend:
     # Always Free VM.Standard.E2.1.Micro는 AMD64다. ARM Mac에서도 같은 이미지를 만든다.

@@ -1,3 +1,5 @@
+name: sairo
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
