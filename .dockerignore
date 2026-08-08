@@ -1,0 +1,11 @@
+.git
+.github
+.gradle
+.idea
+build
+data
+deploy/.env.app
+deploy/.env.db
+*.iml
+*.log
+*.pem

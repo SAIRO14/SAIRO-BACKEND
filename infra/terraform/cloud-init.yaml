@@ -1,0 +1,22 @@
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - git
+
+write_files:
+  - path: /etc/sysctl.d/99-sairo.conf
+    permissions: "0644"
+    content: |
+      vm.swappiness=10
+
+runcmd:
+  - [systemctl, enable, --now, docker]
+  - [usermod, -aG, docker, ubuntu]
+  - [fallocate, -l, 1G, /swapfile]
+  - [chmod, "600", /swapfile]
+  - [mkswap, /swapfile]
+  - [swapon, /swapfile]
+  - [sh, -c, "echo '/swapfile none swap sw 0 0' >> /etc/fstab"]
+  - [sysctl, --system]

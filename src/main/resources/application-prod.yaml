@@ -1,0 +1,29 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    hikari:
+      # Always Free E2.1.Micro의 1GB 메모리 안에서 동작하도록 풀을 작게 유지한다.
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
+      minimum-idle: ${DB_POOL_MIN_IDLE:1}
+
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  # Caddy가 전달한 X-Forwarded-* 헤더를 반영해 외부 URL과 스킴을 계산한다.
+  forward-headers-strategy: framework
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true

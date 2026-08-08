@@ -1,0 +1,9 @@
+{$SERVER_ADDRESS::80} {
+	encode zstd gzip
+	reverse_proxy backend:8080
+
+	log {
+		output stdout
+		format console
+	}
+}
