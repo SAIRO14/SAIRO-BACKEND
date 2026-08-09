@@ -11,6 +11,28 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1
     validate-on-migrate: true
+    # 마이그레이션은 아래 statement_timeout(5초)에서 제외한다. 무거운 마이그레이션 하나가
+    # 배포 시점에 잘리면 앱이 뜨지 않는다.
+    #
+    # url을 주면 Flyway가 자체 데이터소스를 만들어 쓰고 끝나면 닫는다. **이게 중요하다** —
+    # 같은 풀에 init-sqls를 걸면 SET이 걸린 커넥션이 풀로 돌아가 런타임 쿼리까지
+    # 상한 없이 돌게 된다. 분리해야 마이그레이션만 예외가 된다 (ADR 0017).
+    url: ${spring.datasource.url}
+    user: ${spring.datasource.username}
+    password: ${spring.datasource.password}
+    init-sqls: ["SET statement_timeout = 0"]
+
+  # 쿼리 실행 상한은 PostgreSQL 서버 측 statement_timeout으로 건다 (ADR 0017).
+  # JPA 힌트(jakarta.persistence.query.timeout)는 JdbcTemplate 경로를 덮지 못하는데
+  # 정작 무거운 pgvector 조회가 그쪽이다(PhotoEmbeddingRepository).
+  #
+  # Flyway는 위 init-sqls로 이 상한에서 빠진다. 마이그레이션 작성자가 기억할 필요가 없다.
+  datasource:
+    hikari:
+      # 커넥션 획득 상한. statement_timeout과 다른 축이다 — 이건 풀에서 커넥션을 못 받을 때다.
+      connection-timeout: 5000
+      data-source-properties:
+        options: "-c statement_timeout=5000"
 
   jpa:
     hibernate:
@@ -21,6 +43,18 @@ spring:
 
 server:
   port: 8080
+
+# TourAPI 호출 상한. 값의 근거와 재시도 정책은 ADR 0017에 있다.
+# base-url과 service-key는 프로파일별 설정에 둔다 — 키는 커밋하지 않는다.
+#
+# 이 값들이 단일 출처다. 코드에 기본값을 두지 않는다 — 두 곳에 적으면 어긋난다.
+tour-api:
+  connect-timeout: 3s
+  read-timeout: 5s
+  # 첫 시도가 이 시간을 넘겨 실패하면 재시도하지 않는다. 느린 상대에게 한 번 더
+  # 보내면 그 한 건이 코스당 예산(10초)을 혼자 쓴다.
+  # 이 값 + read-timeout이 fetchDetail 1회의 상한이다 (3s + 5s = 8s).
+  retry-elapsed-limit: 3s
 
 # 오류 응답의 traceId와 서버 로그를 이어 붙이기 위한 패턴 (TraceIdFilter가 MDC에 넣는다)
 logging:
