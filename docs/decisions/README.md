@@ -26,6 +26,7 @@
 | [0014](./0014-share-link-lifetime.md) | 공유 링크와 코스를 MVP에서 만료시키지 않는다 | 수용됨 | 2026-08-01 |
 | [0015](./0015-eager-course-creation.md) | 취향 분석 시 코스를 즉시 생성한다 | 수용됨 | 2026-08-03 |
 | [0016](./0016-self-built-course-with-nearby-places.md) | 코스는 자체 스팟으로, 주변 장소는 TourAPI로 | 수용됨 | 2026-08-05 |
+| [0017](./0017-oci-always-free-deployment-topology.md) | OCI Always Free 배포를 Terraform과 분리 VM으로 구성 | 수용됨 | 2026-08-09 |
 
 ## 언제 ADR을 쓰나
 

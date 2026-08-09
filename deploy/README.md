@@ -2,6 +2,8 @@
 
 공모전 제출용 저비용 구성을 전제로 한다. 춘천 홈 리전은 Always Free Ampere A1 대상에서
 제외되므로 `VM.Standard.E2.1.Micro` 두 대를 사용한다.
+이 배포 구조와 백업 정책을 선택한 이유는
+[ADR 0017](../docs/decisions/0017-oci-always-free-deployment-topology.md)에 기록돼 있다.
 
 ```text
 Internet
