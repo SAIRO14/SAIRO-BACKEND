@@ -1,4 +1,4 @@
-# 0017. OCI Always Free 배포를 Terraform과 분리 VM으로 구성한다
+# 0018. OCI Always Free 배포를 Terraform과 분리 VM으로 구성한다
 
 - **상태:** 수용됨
 - **날짜:** 2026-08-09
