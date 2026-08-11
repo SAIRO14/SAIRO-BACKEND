@@ -2,6 +2,8 @@
 
 Terraform은 Always Free `VM.Standard.E2.1.Micro` 두 대와 각 50GB 부트 볼륨을 만든다.
 SAIRO 전용 컴파트먼트·VCN·public subnet·NSG도 함께 관리한다.
+구성 선택과 DB 공인 IP의 보안 트레이드오프는
+[ADR 0018](../../docs/decisions/0018-oci-always-free-deployment-topology.md)에 기록돼 있다.
 
 개인별 `terraform.tfvars`와 Terraform 상태는 Git에 커밋하지 않는다.
 `ubuntu_image_ocid`에는 검증한 Ubuntu 24.04 이미지 OCID를 명시한다. 최신 이미지를 자동 선택하지
