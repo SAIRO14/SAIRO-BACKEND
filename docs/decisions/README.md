@@ -27,6 +27,7 @@
 | [0015](./0015-eager-course-creation.md) | 취향 분석 시 코스를 즉시 생성한다 | 수용됨 | 2026-08-03 |
 | [0016](./0016-self-built-course-with-nearby-places.md) | 코스는 자체 스팟으로, 주변 장소는 TourAPI로 | 수용됨 | 2026-08-05 |
 | [0017](./0017-request-timeouts.md) | 요청 타임아웃과 외부 호출 예산 | 수용됨 | 2026-08-07 |
+| [0018](./0018-oci-always-free-deployment-topology.md) | OCI Always Free 배포를 Terraform과 분리 VM으로 구성 | 수용됨 | 2026-08-09 |
 
 ## 언제 ADR을 쓰나
 

@@ -1,5 +1,6 @@
 HELP.md
 .gradle
+.gradle-work/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
@@ -63,7 +64,17 @@ application-local.yaml
 application-local.yml
 .env
 *.pem
+deploy/.env.app
+deploy/.env.db
 
 # 데이터 파일 — 로컬 전용, 커밋 금지
 *.json
 data/
+deploy/backups/
+
+# Terraform 로컬 상태와 개인별 입력값
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+terraform.tfvars

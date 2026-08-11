@@ -13,6 +13,8 @@
 | [AGENTS.md](./AGENTS.md) | **코드를 어떻게 쓰는가** — 패키지 구조, 계층 규칙, 오류 처리, 테스트 |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | 브랜치 전략, 커밋 규칙, PR 흐름 |
 | [CLAUDE.md](./CLAUDE.md) | AI 에이전트용 진입점 (AGENTS.md를 참조한다) |
+| [deploy/](./deploy/) | OCI Always Free 배포 구성과 실행 방법 |
+| [infra/terraform/](./infra/terraform/) | SAIRO 전용 OCI 네트워크와 Compute 인프라 코드 |
 
 처음이라면 [docs/README.md](./docs/README.md)에서 시작하면 된다. 어떤 질문에 어떤 문서를 볼지 정리돼 있다.
 
@@ -33,9 +35,10 @@ Java 17 · Spring Boot 4.1.0 · Gradle · PostgreSQL + pgvector · Flyway · spr
 테스트 컨테이너와 같은 이미지를 쓴다.
 
 ```bash
+export LOCAL_DB_PASSWORD='replace-with-local-password'
 docker run -d --name sairo-postgres \
   -e POSTGRES_DB=sairo \
-  -e POSTGRES_PASSWORD=sairo1234 \
+  -e POSTGRES_PASSWORD="$LOCAL_DB_PASSWORD" \
   -p 5433:5432 \
   pgvector/pgvector:pg16
 ```
@@ -53,7 +56,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5433/sairo
     username: postgres
-    password: sairo1234
+    password: ${LOCAL_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
 tour-api:

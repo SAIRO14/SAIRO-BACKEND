@@ -164,7 +164,6 @@ ADR을 가리킨다. 표에 남겨두면 아직 할 일로 읽히기 때문이�
 |---|---|---|---|
 | P0 | 주변 장소 | 없음. 코스에 관광지만 담긴다 | 코스 주변 식당·숙박·카페를 TourAPI로 조회해 응답에 포함 (§3.6) |
 | P1 | 장소 보완 | 정보 하나만 있어도 완전하다고 판단 | 결측 필드별로 TourAPI 보완 |
-| P2 | 데이터 import | 절대 경로와 DB 비밀번호 하드코딩 | CLI 인자와 환경 변수 사용 |
 
 **코스 정리는 MVP 범위 밖으로 결정했다.** `courses`와 `shared_courses`는 계속 쌓이지만
 만료도 정리 배치도 두지 않는다. 격차가 해소된 것이 아니라 감수하기로 한 것이다.
@@ -182,7 +181,8 @@ ADR을 가리킨다. 표에 남겨두면 아직 할 일로 읽히기 때문이�
 저장 목록 커서 페이지([api-contract §5](./api-contract.md#5-커서-페이지네이션)),
 코스 소유권([ADR 0012](./decisions/0012-course-ownership.md)),
 저장 상태 조회 (`GET /courses/{courseId}` · `POST /taste-analysis` `saved` 필드, [#33](https://github.com/SAIRO14/SAIRO-BACKEND/issues/33)),
-요청 타임아웃 — DB·TourAPI 무한 대기 경로 제거([ADR 0017](./decisions/0017-request-timeouts.md)).
+요청 타임아웃 — DB·TourAPI 무한 대기 경로 제거([ADR 0017](./decisions/0017-request-timeouts.md)),
+초기 데이터 import의 파일 경로·DB 비밀번호 외부 주입.
 
 ## 7. MVP 완료 조건
 

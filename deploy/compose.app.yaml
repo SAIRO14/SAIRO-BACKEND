@@ -1,0 +1,57 @@
+name: sairo
+
+services:
+  backend:
+    # Always Free VM.Standard.E2.1.Micro는 AMD64다. ARM Mac에서도 같은 이미지를 만든다.
+    platform: linux/amd64
+    image: ${APP_IMAGE:-sairo-backend:local}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:?SPRING_DATASOURCE_URL is required}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:?SPRING_DATASOURCE_USERNAME is required}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD is required}
+      TOUR_API_BASE_URL: ${TOUR_API_BASE_URL:-https://apis.data.go.kr/B551011/KorService2}
+      TOUR_API_SERVICE_KEY: ${TOUR_API_SERVICE_KEY:?TOUR_API_SERVICE_KEY is required}
+      APP_SHARE_BASE_URL: ${APP_SHARE_BASE_URL:-https://sairo.app/shared}
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xms128m -Xmx384m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError}
+    mem_limit: 640m
+    cpus: 0.90
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    networks:
+      - app
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      SERVER_ADDRESS: ${SERVER_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    mem_limit: 96m
+    networks:
+      - app
+
+networks:
+  app:
+
+volumes:
+  caddy_data:
+  caddy_config:
