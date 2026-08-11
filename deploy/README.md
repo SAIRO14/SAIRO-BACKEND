@@ -150,11 +150,17 @@ pg_restore --list /path/to/sairo-YYYYMMDDTHHMMSSZ.dump
 
 ## CD
 
-`.github/workflows/cd.yml`은 전체 Gradle build와 test를 통과한 뒤 AMD64 애플리케이션 이미지를
-만든다. PR에서는 여기까지 실행해 Dockerfile을 검증한다. `main`에 반영되면 GitHub-hosted runner가
-이미지·배포 스크립트·Compose·Caddy를 checksum과 함께 artifact로 올리고, app VM의 self-hosted
-runner가 검증한 bundle만 내려받아 배포한다. 운영 runner에서는 저장소를 checkout하지 않는다.
-1GB VM에서는 Gradle이나 Docker 이미지 빌드를 실행하지 않는다.
+`main` 대상 PR에서는 `ci.yml`이 전체 Gradle build와 test를 담당하고, `cd.yml`은 중복 테스트 없이
+AMD64 이미지를 만들어 Dockerfile을 검증한다. stacked PR처럼 대상이 `main`이 아니어서 CI가 실행되지
+않는 경우에는 CD가 build와 test도 수행한다. `main` push와 수동 실행에서도 CD가 전체 build와 test를
+직접 통과한 뒤 이미지를 만든다. GitHub-hosted runner는 이미지·배포 스크립트·Compose·Caddy를
+checksum과 함께 artifact로 올리고, app VM의 self-hosted runner가 검증한 bundle만 내려받아
+배포한다. 운영 runner에서는 저장소를 checkout하지 않으며 Gradle이나 Docker 이미지 빌드도 실행하지
+않는다.
+
+CD 배포는 앞의 `/opt/sairo` 부트스트랩과 최초 수동 배포가 완료된 서버만 대상으로 한다.
+`/opt/sairo/.env.app`·`compose.app.yaml`·`Caddyfile`은 실행 설정이자 rollback 원본이므로 배포
+스크립트가 새 bundle을 설치하기 전에 반드시 존재해야 한다.
 
 app VM의 runner는 GitHub로 outbound 연결만 만들기 때문에 GitHub Actions IP를 위해 SSH 22번을
 추가로 공개할 필요가 없다. 이 저장소는 private이며 배포 job은 PR에서 실행되지 않고 `main`에서
@@ -191,6 +197,10 @@ Docker health check를 통과할 때까지 기다린다. 그 다음 Caddy를 재
 응답 본문의 `status: UP`을 확인한다. 어느 단계든 실패하거나 종료 신호를 받으면 직전
 Compose/Caddy 파일과 실행 이미지를 다시 올리고 rollback health check까지 수행한다. 성공한 이미지
 tag는 `/opt/sairo/.last-good-image`에도 기록해 현재 컨테이너 조회가 실패할 때 사용한다.
+
+직전 컨테이너와 `.last-good-image`가 모두 없어 이전 이미지를 찾을 수 없는 경우에는 자동 rollback
+health check를 수행할 수 없다. 이때 실패한 backend와 proxy를 정지·제거하고 배포를 실패 처리하며,
+로그의 `manual recovery is required` 안내에 따라 최초 이미지를 다시 올려야 한다.
 
 production 환경에 승인자를 추가하려면 GitHub `Settings > Environments > production`에서 보호
 규칙을 설정한다. 현재 private 저장소의 GitHub Free 플랜에서는 required reviewer와 branch

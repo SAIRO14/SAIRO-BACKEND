@@ -16,15 +16,20 @@ caddy_file="$deploy_dir/Caddyfile"
 last_good_file="$deploy_dir/.last-good-image"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-for required_file in \
+for bundle_file in \
   "$image_archive" \
-  "$env_file" \
-  "$compose_file" \
-  "$caddy_file" \
   "$script_dir/compose.app.yaml" \
   "$script_dir/Caddyfile"; do
-  if [[ ! -f "$required_file" ]]; then
-    echo "Required file not found: $required_file" >&2
+  if [[ ! -f "$bundle_file" ]]; then
+    echo "Deploy bundle file not found: $bundle_file" >&2
+    exit 1
+  fi
+done
+
+for live_file in "$env_file" "$compose_file" "$caddy_file"; do
+  if [[ ! -f "$live_file" ]]; then
+    echo "::error::Deployment target is not bootstrapped: $live_file" >&2
+    echo "Complete the /opt/sairo bootstrap and initial manual deployment before running CD." >&2
     exit 1
   fi
 done
