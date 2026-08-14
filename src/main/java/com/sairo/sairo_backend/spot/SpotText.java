@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
  */
 public final class SpotText {
 
-    private static final Pattern NEWLINE = Pattern.compile("(<br\\s*/?>\\s*|\\r?\\n)+");
+    private static final Pattern NEWLINE = Pattern.compile("([ \\t]*<br\\s*/?>\\s*|[ \\t]*\\r?\\n)+");
     private static final Pattern TIME_RANGE = Pattern.compile("\\d{1,2}:\\d{2}\\s*~\\s*\\d{1,2}:\\d{2}");
     private static final Pattern ALWAYS_OPEN = Pattern.compile("(상시|24시간)\\s*(개방|무휴|영업|운영)?|연중\\s*(개방|무휴)");
     private static final Pattern YEAR_ROUND = Pattern.compile("연중\\s*(무휴|개방|상시)");

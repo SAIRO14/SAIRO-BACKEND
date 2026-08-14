@@ -16,6 +16,7 @@ class SpotTextTest {
         assertThat(SpotText.normalize("a<br />\nb")).isEqualTo("a\nb");
         assertThat(SpotText.normalize("a<br/>\nb")).isEqualTo("a\nb");
         assertThat(SpotText.normalize("a\r\nb")).isEqualTo("a\nb");
+        assertThat(SpotText.normalize("a <br>\nb")).isEqualTo("a\nb"); // 줄바꿈 앞 공백 제거
     }
 
     @Test
