@@ -51,6 +51,7 @@ public class PlaceService {
                 coalesce(spot.getClosedDays(), detail.closedDays()),
                 coalesce(spot.getParking(), detail.parking()),
                 coalesce(spot.getContact(), detail.contact()),
+                null, null, null, null,
                 stillIncomplete
         );
     }

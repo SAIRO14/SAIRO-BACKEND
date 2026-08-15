@@ -20,7 +20,8 @@ class CourseFingerprintTest {
     private static SpotSummary spot(String id, String name) {
         return new SpotSummary(
                 id, name, 33.4, 126.5, "https://example.com/" + id + ".jpg",
-                "09:00~18:00", "연중무휴", "가능", "064-000-0000"
+                "09:00~18:00", "연중무휴", "가능", "064-000-0000",
+                null, null, null, null
         );
     }
 
@@ -62,12 +63,14 @@ class CourseFingerprintTest {
         CourseSnapshot before = new CourseSnapshot("제주도", null, null, null,
                 List.of(new SpotSummary(
                         "a", "옛 이름", 33.4, 126.5, "https://example.com/old.jpg",
-                        "09:00~18:00", "연중무휴", "가능", "064-000-0000")),
+                        "09:00~18:00", "연중무휴", "가능", "064-000-0000",
+                        null, null, null, null)),
                 List.of(spot("b", "장소B")));
         CourseSnapshot after = new CourseSnapshot("제주도", null, null, null,
                 List.of(new SpotSummary(
                         "a", "새 이름", 35.1, 129.0, "https://example.com/new.jpg",
-                        "10:00~17:00", "매주 월요일", "불가", "064-111-1111")),
+                        "10:00~17:00", "매주 월요일", "불가", "064-111-1111",
+                        null, null, null, null)),
                 List.of(spot("b", "장소B")));
 
         assertThat(CourseFingerprint.of(after)).isEqualTo(CourseFingerprint.of(before));
