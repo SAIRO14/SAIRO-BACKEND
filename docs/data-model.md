@@ -21,10 +21,17 @@ JSONB로 복사해 담고 `spots`를 참조하지 않는다. 공유된 코스는
 공유 당시 모습을 그대로 재현해야 하기 때문이다.
 
 **저장 여행지는 코스 본문을 복사하지 않고 `course_id`로 참조한다.** 단, 목록 카드에 표시하는
-지역 소재지·대표 이미지·추천 이유는 `saved_trips`의 별도 컬럼(`region_area`, `image_url`, `reason`)에
-저장 시점의 값을 복사해 둔다. 목록 조회마다 `courses`를 조인해 JSONB를 역직렬화하는 비용을
-피하기 위해서다. 장소 본문(`day1`, `day2`)은 코스 상세 조회 시 `courses`에서 읽는다.
+지역 소재지·대표 이미지·추천 이유·장소 이름·장소 사진은 `saved_trips`의 별도 컬럼
+(`region_area`, `image_url`, `reason`, `spot_names`, `spot_image_urls`)에 저장 시점의 값을 복사해 둔다.
+목록 조회마다 `courses`를 조인해 JSONB를 역직렬화하는 비용을 피하기 위해서다.
+장소 본문(`day1`, `day2`)은 코스 상세 조회 시 `courses`에서 읽는다.
 ([ADR 0011](./decisions/0011-saved-trip-identity.md))
+
+**카드가 쓰는 값은 목록 응답에 담고, 나머지는 코스 조회로 넘긴다.** 카드가 표시하는 값이
+목록 응답에 없으면 목록 화면이 항목마다 `GET /courses/{courseId}`를 부르게 되고, 화면 하나를
+그리는 요청 수가 목록 길이에 비례한다. 반대로 카드가 쓰지 않는 값(영업시간·휴무일·주차·연락처)을
+목록에 실으면 응답만 커진다. `spot_names`·`spot_image_urls`가 컬럼으로 있는 이유이자,
+`day1`·`day2` 본문이 없는 이유다.
 
 외래키는 둘이다. `shared_courses.course_id`는 내용을 가져오기 위한 참조가 아니라
 **어느 코스에서 나온 공유인지 남기는 용도**이고 ([ADR 0010](./decisions/0010-course-persistence.md)),
@@ -182,9 +189,32 @@ NULL은 유니크 인덱스에서 여러 개가 허용된다.
 | `region_key` | TEXT NOT NULL | 저장 당시의 지역명. `CourseSnapshot.regionName`을 그대로 넣는다. 표시와 필터에 쓰고 **중복 판정에는 쓰지 않는다.** 아래 참고. |
 | `course_fingerprint` | TEXT NOT NULL | 코스 지문. 장소 ID를 정렬해 이어 붙인 값의 SHA-256. |
 | `region_area` | TEXT | 저장 당시의 지역 소재지(시군구). `POST /taste-analysis` 경유 코스에만 있다. |
-| `image_url` | TEXT | 저장 당시의 코스 대표 이미지 URL. `POST /taste-analysis` 경유 코스에만 있다. |
+| `image_url` | TEXT | 저장 당시의 코스 대표 이미지 URL. `POST /taste-analysis` 경유 코스에만 있다. 카드 썸네일은 `spot_image_urls`를 쓴다. |
 | `reason` | TEXT | 저장 당시의 추천 이유 문구. `POST /taste-analysis` 경유 코스에만 있다. |
+| `spot_names` | TEXT[] NOT NULL | 저장 당시 코스의 장소 이름 전부. Day 1 다음 Day 2 순서다. 목록 카드는 이 중 앞부분만 표시한다. 장소가 없는 코스는 빈 배열이다. |
+| `spot_image_urls` | TEXT[] NOT NULL | 저장 당시 코스 장소의 사진 URL. 순서는 `spot_names`와 같지만 **사진이 없는 장소는 빠진다.** 아래 참고. |
 | `created_at` | TIMESTAMP NOT NULL | 저장 시각 |
+
+`spot_names`와 `spot_image_urls`에는 코스의 장소를 **전부** 담고, 표시 개수는 응답을 만드는 쪽
+(`SavedTripResponse`)이 정한다. 표시 개수는 화면 사정이라 바뀔 수 있는데, 컬럼을 표시 개수에
+맞춰두면 바뀔 때마다 백필을 다시 돌려야 한다.
+
+카드 필드는 컬럼이 생긴 뒤 백필했다. `spot_names`는 V7, `spot_image_urls`는 V8,
+`region_area`·`image_url`·`reason`은 V9가 코스 스냅샷에서 채운다. 백필은 값이 없는 행만 채우고
+이미 있는 값은 덮지 않는다. 저장 항목이 보관하는 것은 최초 저장 시점의 표시값이기 때문이다.
+`POST /courses` 경유 코스는 스냅샷에도 소재지·대표 이미지·추천 이유가 없어 `NULL`로 남는다.
+
+### 이름과 사진이 짝이 아닌 이유
+
+`spot_image_urls`는 사진이 없는 장소를 건너뛴다. 그래서 두 배열은 **같은 자리가 같은 장소를
+가리키지 않고 길이도 다르다.** 장소 A·B·C 중 B에 사진이 없으면 이름은 셋, 사진은 A와 C의 것 둘이다.
+
+자리를 맞추려면 사진 없는 장소를 빈 값으로 남겨야 하는데, 그러면 카드 썸네일이 덜 찬다.
+TourAPI 장소에는 사진이 없는 것이 섞여 있어([Q-10](./open-questions.md)) 드물지 않은 일이다.
+카드가 이름과 사진을 짝지어 표시하게 되면 이 결정을 바꿔야 한다.
+
+`image_url`(단수)은 이것과 별개다. 코스 대표 이미지 한 장이며 `POST /taste-analysis` 경유
+코스에만 있다. `spot_image_urls`는 코스에 속한 장소들의 사진이라 `POST /courses` 경유 코스에도 값이 있다.
 
 ### 소유자를 저장 행이 직접 들고 있는 이유
 

@@ -84,7 +84,8 @@ class SavedTripRepositoryTest extends IntegrationTestBase {
 
     private SavedTrip save(String regionKey, String fingerprint) {
         return savedTripRepository.save(
-                UUID.randomUUID().toString(), DEVICE, courseId, regionKey, fingerprint, null, null, null);
+                UUID.randomUUID().toString(), DEVICE, courseId, regionKey, fingerprint,
+                null, null, null, java.util.List.of(), java.util.List.of());
     }
 
     private Integer rowCount() {

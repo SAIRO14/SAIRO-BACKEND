@@ -65,7 +65,11 @@ public class SavedTripController {
                     커서 문자열은 **해석하지 않는다.** 형식은 예고 없이 바뀔 수 있고,
                     읽을 수 없는 커서는 `INVALID_CURSOR`로 거절한다. 이때는 커서를 버리고 첫 페이지부터 다시 읽는다.
 
-                    항목에는 코스 내용이 들어 있지 않다. `courseId`로 코스를 따로 조회한다.
+                    항목에는 카드에 표시할 값만 들어 있다. `spotNames`와 `imageUrls`는 코스의 장소
+                    **전부가 아니라** 카드에 표시할 앞부분이다. 코스 전체 내용은 `courseId`로 따로 조회한다.
+
+                    `spotNames`와 `imageUrls`는 **서로 짝이 아니다.** 사진이 없는 장소는 `imageUrls`에서
+                    빠지므로 같은 자리가 다른 장소일 수 있고 길이도 다를 수 있다.
                     """
     )
     @ApiResponses({
