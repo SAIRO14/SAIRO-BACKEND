@@ -8,33 +8,29 @@
 -- POST /taste-analysis 경유 코스에만 있다. 이 컬럼은 코스에 속한 장소들의 사진이라
 -- POST /courses 경유 코스에도 값이 있다.
 --
--- 이미지가 없는 장소는 담지 않는다. 그래서 spot_names와 길이도 순서도 일치하지 않는다.
--- 짝을 맞추면 앞선 장소에 사진이 없을 때 썸네일 자리가 비는데, 카드는 두 장을 요구한다.
+-- spot_names와 인덱스가 맞는다. i번째 원소는 둘 다 i번째 장소의 것이고, 사진이 없는 장소는
+-- 빼는 대신 NULL로 남긴다. 빼버리면 몇 번째 장소의 사진인지가 사라져 이름과 짝지어 표시하는
+-- 선택지가 없어진다. 무엇을 보여줄지 고르는 일은 응답 레이어(SavedTripResponse)가 한다.
 ALTER TABLE saved_trips
     ADD COLUMN spot_image_urls TEXT[] NOT NULL DEFAULT '{}';
 
--- 이미 저장된 행은 코스 스냅샷에서 채운다. 근거는 V7의 백필과 같다.
+-- backfill:start
 --
--- 순서는 day1 다음 day2이며 코스의 동선 순서다.
--- jsonb_path_query_array(lax 모드)를 쓰는 이유도 V7과 같다. day1이 배열이 아닌 행이 섞여 있어도
--- 그 행만 빈 배열이 되고 마이그레이션은 계속 진행된다.
---
--- '$.day1[*].imageUrl'은 JSON에 imageUrl 키가 없거나 값이 null인 장소를 건너뛴다.
--- 전자는 경로가 매치되지 않아서, 후자는 아래 jsonb_array_elements_text가 SQL NULL로 주고
--- ARRAY(...)가 그것을 걸러내지 않으므로 WHERE로 명시해 거른다.
+-- 이미 저장된 행은 코스 스냅샷에서 채운다. 근거와 방식은 V7의 백필과 같다.
+-- 원소마다 ->> 'imageUrl'을 뽑아 장소 하나가 원소 하나가 되게 하고,
+-- 배열이 아닌 day는 jsonb_typeof로 걸러 마이그레이션이 멈추지 않게 한다.
 UPDATE saved_trips st
 SET spot_image_urls = sub.urls
 FROM (
     SELECT s.saved_trip_id,
-           -- 별칭을 spot_image_url로 둔다. image_url로 두면 saved_trips.image_url과 이름이 겹쳐
-           -- WHERE 절이 그쪽으로 해석돼 모든 행이 걸러진다.
            ARRAY(
-               SELECT spot_image_url
-               FROM jsonb_array_elements_text(
-                        jsonb_path_query_array(c.course_data, '$.day1[*].imageUrl')
-                            || jsonb_path_query_array(c.course_data, '$.day2[*].imageUrl')
-                    ) AS spot_image_url
-               WHERE spot_image_url IS NOT NULL
+               SELECT spot ->> 'imageUrl'
+               FROM jsonb_array_elements(
+                        CASE WHEN jsonb_typeof(c.course_data -> 'day1') = 'array'
+                             THEN c.course_data -> 'day1' ELSE '[]'::jsonb END
+                            || CASE WHEN jsonb_typeof(c.course_data -> 'day2') = 'array'
+                                    THEN c.course_data -> 'day2' ELSE '[]'::jsonb END
+                    ) AS spot
            ) AS urls
     FROM saved_trips s
              JOIN courses c ON c.course_id = s.course_id

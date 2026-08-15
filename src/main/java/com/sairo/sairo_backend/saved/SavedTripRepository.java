@@ -10,8 +10,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * 저장 여행지 저장소.
@@ -43,16 +43,20 @@ class SavedTripRepository {
     /**
      * 카드용 배열 컬럼을 읽는다. 둘 다 {@code NOT NULL DEFAULT '{}'}라 값이 항상 있다.
      *
-     * <p>그래도 {@code null}과 원소 {@code null}을 걸러 빈 목록으로 받는다. 이 값은 응답에 그대로
-     * 나가므로, 제약이 깨진 행 하나가 목록 전체를 500으로 만들지 않게 한다.
-     * (docs/api-contract.md §6)
+     * <p><b>원소 {@code null}을 그대로 둔다.</b> {@code spot_names}와 {@code spot_image_urls}는
+     * 인덱스가 맞고, 여기서 걸러내면 그 대응이 무너져 이름과 사진을 짝지어 표시할 수 없게 된다.
+     * 무엇을 보여줄지 고르는 일은 {@link SavedTripResponse}가 한다. 그래서 {@code List.of}가
+     * 아니라 {@code null}을 담을 수 있는 목록을 쓴다.
+     *
+     * <p>컬럼 자체가 {@code null}이면 빈 목록으로 받는다. 제약이 깨진 행 하나가 목록 전체를
+     * 500으로 만들지 않게 한다. (docs/api-contract.md §6)
      */
     private static List<String> readTextArray(ResultSet rs, String column) throws SQLException {
         Array array = rs.getArray(column);
         if (array == null) {
             return List.of();
         }
-        return Arrays.stream((String[]) array.getArray()).filter(Objects::nonNull).toList();
+        return Collections.unmodifiableList(Arrays.asList((String[]) array.getArray()));
     }
 
     /**

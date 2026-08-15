@@ -253,9 +253,9 @@ class SavedTripApiTest extends IntegrationTestBase {
 
         mockMvc.perform(saveRequest(DEVICE_A, courseId))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.imageUrls.length()").value(2))
-                .andExpect(jsonPath("$.imageUrls[0]").value("https://example.com/장소A.jpg"))
-                .andExpect(jsonPath("$.imageUrls[1]").value("https://example.com/장소B.jpg"));
+                .andExpect(jsonPath("$.spotImageUrls.length()").value(2))
+                .andExpect(jsonPath("$.spotImageUrls[0]").value("https://example.com/장소A.jpg"))
+                .andExpect(jsonPath("$.spotImageUrls[1]").value("https://example.com/장소B.jpg"));
     }
 
     /**
@@ -263,9 +263,12 @@ class SavedTripApiTest extends IntegrationTestBase {
      *
      * <p>TourAPI 장소에는 사진이 없는 것이 섞여 있다. 자리를 비워두면 카드 썸네일이 한 장만 찬다.
      *
-     * <p>그 결과 {@code imageUrls}와 {@code spotNames}는 <b>짝이 아니다.</b> 여기서
+     * <p>그 결과 <b>응답의</b> {@code spotImageUrls}와 {@code spotNames}는 짝이 아니다. 여기서
      * 이름 앞 두 개는 장소A·장소B지만 사진 앞 두 장은 장소A·장소C의 것이다.
      * 카드가 둘을 짝지어 표시해야 한다면 이 동작을 바꿔야 하므로 명시적으로 고정한다.
+     *
+     * <p><b>저장된 값은 자리가 맞는다.</b> 건너뛰는 것은 응답을 만들 때뿐이라, 정책을 바꿀 때
+     * 백필이 필요 없다. 아래에서 컬럼까지 확인하는 이유다.
      */
     @Test
     void save_fromCourseWithSpotMissingImage_skipsItAndDoesNotPairWithNames() throws Exception {
@@ -274,13 +277,21 @@ class SavedTripApiTest extends IntegrationTestBase {
                         + "," + spotJson("장소B", null) + "]",
                 "[" + spotJson("장소C", "https://example.com/c.jpg") + "]");
 
-        mockMvc.perform(saveRequest(DEVICE_A, courseId))
+        String body = mockMvc.perform(saveRequest(DEVICE_A, courseId))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.spotNames[0]").value("장소A"))
                 .andExpect(jsonPath("$.spotNames[1]").value("장소B"))
-                .andExpect(jsonPath("$.imageUrls.length()").value(2))
-                .andExpect(jsonPath("$.imageUrls[0]").value("https://example.com/a.jpg"))
-                .andExpect(jsonPath("$.imageUrls[1]").value("https://example.com/c.jpg"));
+                .andExpect(jsonPath("$.spotImageUrls.length()").value(2))
+                .andExpect(jsonPath("$.spotImageUrls[0]").value("https://example.com/a.jpg"))
+                .andExpect(jsonPath("$.spotImageUrls[1]").value("https://example.com/c.jpg"))
+                .andReturn().getResponse().getContentAsString();
+
+        // 컬럼에는 장소 하나가 한 자리씩, 사진 없는 장소는 그 자리가 null이다.
+        String savedTripId = extract(body, "savedTripId");
+        assertThat(columnOf(savedTripId, "spot_names"))
+                .containsExactly("장소A", "장소B", "장소C");
+        assertThat(columnOf(savedTripId, "spot_image_urls"))
+                .containsExactly("https://example.com/a.jpg", null, "https://example.com/c.jpg");
     }
 
     /**
@@ -296,8 +307,8 @@ class SavedTripApiTest extends IntegrationTestBase {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.spotNames").isArray())
                 .andExpect(jsonPath("$.spotNames").isEmpty())
-                .andExpect(jsonPath("$.imageUrls").isArray())
-                .andExpect(jsonPath("$.imageUrls").isEmpty());
+                .andExpect(jsonPath("$.spotImageUrls").isArray())
+                .andExpect(jsonPath("$.spotImageUrls").isEmpty());
     }
 
     /**
@@ -371,8 +382,8 @@ class SavedTripApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.items[0].spotNames.length()").value(2))
                 .andExpect(jsonPath("$.items[0].spotNames[0]").value("덕양서원(의성)"))
                 .andExpect(jsonPath("$.items[0].spotNames[1]").value("연일향교"))
-                .andExpect(jsonPath("$.items[0].imageUrls.length()").value(2))
-                .andExpect(jsonPath("$.items[0].imageUrls[0]").value("https://example.com/덕양서원(의성).jpg"));
+                .andExpect(jsonPath("$.items[0].spotImageUrls.length()").value(2))
+                .andExpect(jsonPath("$.items[0].spotImageUrls[0]").value("https://example.com/덕양서원(의성).jpg"));
     }
 
     /**
@@ -877,6 +888,14 @@ class SavedTripApiTest extends IntegrationTestBase {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return extract(body, "courseId");
+    }
+
+    /** {@code null} 원소가 그대로 들어오므로 {@code Arrays.asList}로 받는다. */
+    private List<String> columnOf(String savedTripId, String column) {
+        return jdbcTemplate.queryForObject(
+                "SELECT " + column + " FROM saved_trips WHERE saved_trip_id = ?",
+                (rs, rowNum) -> java.util.Arrays.asList((String[]) rs.getArray(column).getArray()),
+                savedTripId);
     }
 
     private Integer savedTripCount(String deviceId) {

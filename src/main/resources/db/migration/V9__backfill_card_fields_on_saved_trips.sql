@@ -15,6 +15,7 @@
 -- 빠뜨린 것이 아니다. 이 경로의 코스는 지역 카드를 거치지 않아 소재지도 추천 이유도 만들어지지 않는다.
 --
 -- course_data가 객체가 아닌 행에서 ->> 는 오류 대신 NULL을 준다. 그 행은 그대로 남는다.
+-- backfill:start
 UPDATE saved_trips st
 SET region_area = COALESCE(st.region_area, c.course_data ->> 'regionArea'),
     image_url   = COALESCE(st.image_url, c.course_data ->> 'imageUrl'),

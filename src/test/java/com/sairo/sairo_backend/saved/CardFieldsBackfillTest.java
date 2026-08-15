@@ -32,6 +32,9 @@ class CardFieldsBackfillTest extends IntegrationTestBase {
     private static final String IMAGE_URLS_MIGRATION = "V8__add_spot_image_urls_to_saved_trips.sql";
     private static final String CARD_FIELDS_MIGRATION = "V9__backfill_card_fields_on_saved_trips.sql";
 
+    /** 마이그레이션 파일에서 백필 문장이 시작하는 지점을 가리키는 주석. */
+    private static final String BACKFILL_MARKER = "-- backfill:start";
+
     @Autowired
     JdbcTemplate jdbcTemplate;
 
@@ -64,18 +67,47 @@ class CardFieldsBackfillTest extends IntegrationTestBase {
     }
 
     /**
-     * 사진이 없는 장소는 {@code spot_image_urls}에서 빠진다.
+     * 사진이 없는 장소도 자리를 지킨다. 두 배열의 길이가 같고 i번째가 같은 장소다.
      *
-     * <p>런타임 경로({@code SavedTripService})와 같은 규칙이어야 한다. 백필된 옛 행과
-     * 새로 저장한 행이 다르게 굴면 같은 화면에서 카드가 두 가지로 보인다.
+     * <p>런타임 경로({@code SavedTripService.spotFieldOf})와 같은 규칙이어야 한다.
+     * 백필된 옛 행과 새로 저장한 행이 다르게 굴면 같은 화면에서 카드가 두 가지로 보인다.
+     *
+     * <p>{@code imageUrl}이 JSON {@code null}인 경우와 키 자체가 없는 경우를 함께 넣는다.
+     * 둘 다 자리를 유지해야 한다. 키가 없을 때 자리가 밀리는 것이
+     * {@code jsonb_path_query_array('$.day1[*].imageUrl')}를 쓰지 않는 이유다.
      */
     @Test
-    void backfill_skipsSpotsWithoutImage() {
+    void backfill_keepsSlotForSpotsWithoutImage() {
         String courseId = insertCourse("""
                 {"regionName":"제주도",
                  "day1":[{"spotId":"s1","name":"장소A","imageUrl":"https://example.com/a.jpg"},
                          {"spotId":"s2","name":"장소B","imageUrl":null},
                          {"spotId":"s3","name":"장소C"}],
+                 "day2":[{"spotId":"s4","name":"장소D","imageUrl":"https://example.com/d.jpg"}]}
+                """);
+        insertPreBackfillSavedTrip("trip-1", courseId);
+
+        runBackfill(SPOT_NAMES_MIGRATION);
+        runBackfill(IMAGE_URLS_MIGRATION);
+
+        assertThat(columnOf("trip-1", "spot_names"))
+                .containsExactly("장소A", "장소B", "장소C", "장소D");
+        assertThat(columnOf("trip-1", "spot_image_urls"))
+                .containsExactly("https://example.com/a.jpg", null, null, "https://example.com/d.jpg");
+    }
+
+    /**
+     * 이름이 없는 장소도 자리를 지킨다.
+     *
+     * <p>{@code spots.name}이 NOT NULL이라 실제로는 드물지만, 자리가 밀리면 사진과의 대응이
+     * 조용히 어긋난다. 두 컬럼이 같은 규칙을 따르는지 확인한다.
+     */
+    @Test
+    void backfill_keepsSlotForSpotsWithoutName() {
+        String courseId = insertCourse("""
+                {"regionName":"제주도",
+                 "day1":[{"spotId":"s1","name":null,"imageUrl":"https://example.com/a.jpg"},
+                         {"spotId":"s2","name":"장소B","imageUrl":"https://example.com/b.jpg"}],
                  "day2":[]}
                 """);
         insertPreBackfillSavedTrip("trip-1", courseId);
@@ -83,9 +115,9 @@ class CardFieldsBackfillTest extends IntegrationTestBase {
         runBackfill(SPOT_NAMES_MIGRATION);
         runBackfill(IMAGE_URLS_MIGRATION);
 
-        // 이름은 셋 다 남고 사진은 하나만 남는다. 두 배열은 짝이 아니다.
-        assertThat(columnOf("trip-1", "spot_names")).containsExactly("장소A", "장소B", "장소C");
-        assertThat(columnOf("trip-1", "spot_image_urls")).containsExactly("https://example.com/a.jpg");
+        assertThat(columnOf("trip-1", "spot_names")).containsExactly(null, "장소B");
+        assertThat(columnOf("trip-1", "spot_image_urls"))
+                .containsExactly("https://example.com/a.jpg", "https://example.com/b.jpg");
     }
 
     /**
@@ -183,10 +215,21 @@ class CardFieldsBackfillTest extends IntegrationTestBase {
 
     // ─── helpers ────────────────────────────────────────────────────────────
 
-    /** 마이그레이션의 백필 문장만 떼어 실행한다. 앞의 {@code ALTER TABLE}은 이미 적용돼 있다. */
+    /**
+     * 마이그레이션의 백필 문장만 떼어 실행한다. 앞의 {@code ALTER TABLE}은 이미 적용돼 있다.
+     *
+     * <p>자르는 기준은 {@code backfill:start} 마커다. {@code "UPDATE saved_trips"}를 찾는 방식은
+     * 그 문자열이 주석에 들어가거나 백필문이 둘 이상이 되면 조용히 일부만 실행한다.
+     * 마커는 마이그레이션 파일 쪽에도 "여기부터는 테스트가 다시 실행한다"는 의도를 남긴다.
+     */
     private void runBackfill(String migrationFile) {
         String migration = readMigration(migrationFile);
-        jdbcTemplate.execute(migration.substring(migration.indexOf("UPDATE saved_trips")));
+        int marker = migration.indexOf(BACKFILL_MARKER);
+        if (marker < 0) {
+            throw new IllegalStateException(
+                    migrationFile + "에 " + BACKFILL_MARKER + " 마커가 없다. 백필이 검증되지 않는다.");
+        }
+        jdbcTemplate.execute(migration.substring(marker + BACKFILL_MARKER.length()));
     }
 
     private String readMigration(String migrationFile) {
@@ -226,10 +269,11 @@ class CardFieldsBackfillTest extends IntegrationTestBase {
                 savedTripId);
     }
 
+    /** 자리를 비운 원소가 {@code null}로 들어오므로 {@code List.of}가 아니라 {@code Arrays.asList}로 받는다. */
     private List<String> columnOf(String savedTripId, String column) {
         return jdbcTemplate.queryForObject(
                 "SELECT " + column + " FROM saved_trips WHERE saved_trip_id = ?",
-                (rs, rowNum) -> List.of((String[]) rs.getArray(column).getArray()),
+                (rs, rowNum) -> java.util.Arrays.asList((String[]) rs.getArray(column).getArray()),
                 savedTripId);
     }
 }

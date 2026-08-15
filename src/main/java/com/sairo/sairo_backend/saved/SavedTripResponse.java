@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 public record SavedTripResponse(
         @Schema(description = "저장 항목 ID", example = "1f0a2b3c-4d5e-4f70-8192-a3b4c5d6e7f8")
@@ -17,7 +18,7 @@ public record SavedTripResponse(
         @Schema(
                 description = """
                         코스 대표 이미지 URL 한 장. `POST /taste-analysis` 경유 코스에만 있어 `null`일 수 있다.
-                        카드 썸네일에는 `imageUrls`를 쓴다.
+                        카드 썸네일에는 `spotImageUrls`를 쓴다.
                         """,
                 nullable = true
         )
@@ -42,7 +43,7 @@ public record SavedTripResponse(
                         """,
                 example = "[\"https://tong.visitkorea.or.kr/a.jpg\", \"https://tong.visitkorea.or.kr/b.jpg\"]"
         )
-        List<String> imageUrls,
+        List<String> spotImageUrls,
         @Schema(description = "저장 시각")
         LocalDateTime createdAt
 ) {
@@ -66,9 +67,23 @@ public record SavedTripResponse(
                 savedTrip.regionArea(),
                 savedTrip.imageUrl(),
                 savedTrip.reason(),
-                savedTrip.spotNames().stream().limit(CARD_SPOT_NAME_COUNT).toList(),
-                savedTrip.spotImageUrls().stream().limit(CARD_IMAGE_COUNT).toList(),
+                cardValues(savedTrip.spotNames(), CARD_SPOT_NAME_COUNT),
+                cardValues(savedTrip.spotImageUrls(), CARD_IMAGE_COUNT),
                 savedTrip.createdAt()
         );
+    }
+
+    /**
+     * 저장된 전체 값에서 카드가 표시할 만큼을 고른다.
+     *
+     * <p>컬럼은 장소 하나당 한 자리를 지키느라 값이 없는 자리를 {@code null}로 남긴다.
+     * <b>고르는 규칙은 여기 한 곳에만 있다.</b> 지금은 빈 자리를 건너뛰고 앞에서부터 채운다.
+     * 카드에 빈 칸을 그리게 하느니 다음 장소를 보여주는 편이 낫기 때문이다.
+     *
+     * <p>그 결과 이름과 사진이 같은 장소를 가리키지 않을 수 있다. 카드가 둘을 짝지어
+     * 표시하게 되면 <b>이 메서드만</b> 바꾸면 된다. 저장된 값은 자리가 맞으므로 백필이 필요 없다.
+     */
+    private static List<String> cardValues(List<String> stored, int count) {
+        return stored.stream().filter(Objects::nonNull).limit(count).toList();
     }
 }

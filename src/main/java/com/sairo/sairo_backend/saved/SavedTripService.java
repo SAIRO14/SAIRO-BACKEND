@@ -10,9 +10,9 @@ import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -77,9 +77,12 @@ public class SavedTripService {
      * 카드마다 코스 조회를 한 번씩 더 해야 한다. 그래서 저장 시점에 함께 복사해 둔다.
      * {@code regionArea}·{@code imageUrl}·{@code reason}과 같은 이유다.
      *
-     * <p><b>값이 없는 장소는 건너뛴다.</b> 카드에 빈 칸을 그리게 하느니 다음 장소를 보여주는 편이 낫다.
-     * 그래서 이름 목록과 사진 목록은 같은 자리가 같은 장소를 가리키지 않고 길이도 다를 수 있다.
-     * 카드가 둘을 짝지어 표시해야 한다면 이 방식을 바꿔야 한다.
+     * <p><b>값이 없는 장소도 자리를 비워 담는다.</b> 그래서 이름 목록과 사진 목록은 길이가 같고
+     * 같은 자리가 같은 장소를 가리킨다. 사진 없는 장소를 여기서 빼버리면 몇 번째 장소의 사진인지가
+     * 사라져, 이름과 사진을 짝지어 표시하는 선택지가 없어진다.
+     * 무엇을 보여줄지 고르는 일은 {@link SavedTripResponse}가 한다.
+     *
+     * <p>{@code null}을 담아야 하므로 {@code toList()}가 아니라 {@code Collectors.toList()}를 쓴다.
      */
     private static List<String> spotFieldOf(CourseSnapshot snapshot,
                                             Function<SpotSummary, String> field) {
@@ -87,8 +90,7 @@ public class SavedTripService {
                         nullSafe(snapshot.day1()).stream(),
                         nullSafe(snapshot.day2()).stream())
                 .map(field)
-                .filter(Objects::nonNull)
-                .toList();
+                .collect(Collectors.toList());
     }
 
     /** {@code POST /courses} 이전 형식의 스냅샷에는 Day가 비어 있을 수 있다. */
