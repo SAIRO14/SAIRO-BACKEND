@@ -5,7 +5,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Array;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -17,6 +22,10 @@ import java.util.List;
 @RequiredArgsConstructor
 class SavedTripRepository {
 
+    /** 모든 조회가 같은 컬럼 집합을 읽는다. 한 곳만 고치면 ROW_MAPPER와 어긋나지 않는다. */
+    private static final String COLUMNS = "saved_trip_id, course_id, region_key, region_area, "
+            + "image_url, reason, spot_names, spot_image_urls, created_at";
+
     private static final RowMapper<SavedTrip> ROW_MAPPER = (rs, rowNum) -> new SavedTrip(
             rs.getString("saved_trip_id"),
             rs.getString("course_id"),
@@ -24,10 +33,31 @@ class SavedTripRepository {
             rs.getString("region_area"),
             rs.getString("image_url"),
             rs.getString("reason"),
+            readTextArray(rs, "spot_names"),
+            readTextArray(rs, "spot_image_urls"),
             rs.getTimestamp("created_at").toLocalDateTime()
     );
 
     private final JdbcTemplate jdbcTemplate;
+
+    /**
+     * 카드용 배열 컬럼을 읽는다. 둘 다 {@code NOT NULL DEFAULT '{}'}라 값이 항상 있다.
+     *
+     * <p><b>원소 {@code null}을 그대로 둔다.</b> {@code spot_names}와 {@code spot_image_urls}는
+     * 인덱스가 맞고, 여기서 걸러내면 그 대응이 무너져 이름과 사진을 짝지어 표시할 수 없게 된다.
+     * 무엇을 보여줄지 고르는 일은 {@link SavedTripResponse}가 한다. 그래서 {@code List.of}가
+     * 아니라 {@code null}을 담을 수 있는 목록을 쓴다.
+     *
+     * <p>컬럼 자체가 {@code null}이면 빈 목록으로 받는다. 제약이 깨진 행 하나가 목록 전체를
+     * 500으로 만들지 않게 한다. (docs/api-contract.md §6)
+     */
+    private static List<String> readTextArray(ResultSet rs, String column) throws SQLException {
+        Array array = rs.getArray(column);
+        if (array == null) {
+            return List.of();
+        }
+        return Collections.unmodifiableList(Arrays.asList((String[]) array.getArray()));
+    }
 
     /**
      * 저장 항목을 만든다. 이미 같은 내용이 저장돼 있으면 새로 만들지 않고 기존 행을 돌려준다.
@@ -42,6 +72,8 @@ class SavedTripRepository {
      *
      * <p>충돌 시 {@code region_key}와 {@code course_id}는 <b>기존 값을 유지한다.</b>
      * 저장 항목이 가리키는 것은 최초로 저장한 그 코스다.
+     * {@code spot_names}도 같다. 지문이 같으면 장소 집합도 같지만 순서와 이름 표기는 다를 수 있고,
+     * 남는 것은 최초 저장 시점의 것이다. (ADR 0011)
      */
     SavedTrip save(String savedTripId,
                    String deviceId,
@@ -50,18 +82,42 @@ class SavedTripRepository {
                    String courseFingerprint,
                    String regionArea,
                    String imageUrl,
-                   String reason) {
-        return jdbcTemplate.queryForObject(
-                """
+                   String reason,
+                   List<String> spotNames,
+                   List<String> spotImageUrls) {
+        String sql = """
                 INSERT INTO saved_trips
-                    (saved_trip_id, device_id, course_id, region_key, course_fingerprint, region_area, image_url, reason)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (saved_trip_id, device_id, course_id, region_key, course_fingerprint,
+                     region_area, image_url, reason, spot_names, spot_image_urls)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (device_id, course_fingerprint)
                     DO UPDATE SET device_id = EXCLUDED.device_id
-                RETURNING saved_trip_id, course_id, region_key, region_area, image_url, reason, created_at
-                """,
-                ROW_MAPPER,
-                savedTripId, deviceId, courseId, regionKey, courseFingerprint, regionArea, imageUrl, reason
+                RETURNING""" + " " + COLUMNS;
+
+        // TEXT[] 바인딩에는 커넥션이 필요해 PreparedStatementCreator를 쓴다.
+        // JdbcTemplate의 가변 인자 경로는 String[]을 배열 파라미터로 넘기지 못한다.
+        return jdbcTemplate.query(
+                connection -> {
+                    var ps = connection.prepareStatement(sql);
+                    ps.setString(1, savedTripId);
+                    ps.setString(2, deviceId);
+                    ps.setString(3, courseId);
+                    ps.setString(4, regionKey);
+                    ps.setString(5, courseFingerprint);
+                    ps.setString(6, regionArea);
+                    ps.setString(7, imageUrl);
+                    ps.setString(8, reason);
+                    ps.setArray(9, connection.createArrayOf("text", spotNames.toArray(new String[0])));
+                    ps.setArray(10, connection.createArrayOf("text", spotImageUrls.toArray(new String[0])));
+                    return ps;
+                },
+                rs -> {
+                    // RETURNING은 충돌 시에도 항상 한 행을 준다. 없으면 그 전제가 깨진 것이다.
+                    if (!rs.next()) {
+                        throw new IllegalStateException("저장 여행지 INSERT가 행을 반환하지 않았다.");
+                    }
+                    return ROW_MAPPER.mapRow(rs, 0);
+                }
         );
     }
 
@@ -86,12 +142,11 @@ class SavedTripRepository {
     List<SavedTrip> findPage(String deviceId, SavedTripCursor cursor, int limit) {
         if (cursor == null) {
             return jdbcTemplate.query(
-                    """
-                    SELECT saved_trip_id, course_id, region_key, region_area, image_url, reason, created_at
-                    FROM saved_trips
-                    WHERE device_id = ?
-                    ORDER BY created_at DESC, saved_trip_id DESC
-                    LIMIT ?
+                    "SELECT " + COLUMNS + """
+                     FROM saved_trips
+                     WHERE device_id = ?
+                     ORDER BY created_at DESC, saved_trip_id DESC
+                     LIMIT ?
                     """,
                     ROW_MAPPER,
                     deviceId, limit
@@ -99,13 +154,12 @@ class SavedTripRepository {
         }
 
         return jdbcTemplate.query(
-                """
-                SELECT saved_trip_id, course_id, region_key, region_area, image_url, reason, created_at
-                FROM saved_trips
-                WHERE device_id = ?
-                  AND (created_at, saved_trip_id) < (?, ?)
-                ORDER BY created_at DESC, saved_trip_id DESC
-                LIMIT ?
+                "SELECT " + COLUMNS + """
+                 FROM saved_trips
+                 WHERE device_id = ?
+                   AND (created_at, saved_trip_id) < (?, ?)
+                 ORDER BY created_at DESC, saved_trip_id DESC
+                 LIMIT ?
                 """,
                 ROW_MAPPER,
                 deviceId, Timestamp.valueOf(cursor.createdAt()), cursor.savedTripId(), limit

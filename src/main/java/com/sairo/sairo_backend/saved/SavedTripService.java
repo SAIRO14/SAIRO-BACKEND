@@ -4,12 +4,16 @@ import com.sairo.sairo_backend.common.BusinessException;
 import com.sairo.sairo_backend.common.ErrorCode;
 import com.sairo.sairo_backend.course.CourseRepository;
 import com.sairo.sairo_backend.course.CourseSnapshot;
+import com.sairo.sairo_backend.course.SpotSummary;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -58,10 +62,40 @@ public class SavedTripService {
                 CourseFingerprint.of(snapshot),
                 snapshot.regionArea(),
                 snapshot.imageUrl(),
-                snapshot.reason()
+                snapshot.reason(),
+                spotFieldOf(snapshot, SpotSummary::name),
+                spotFieldOf(snapshot, SpotSummary::imageUrl)
         );
 
         return SavedTripResponse.from(saved);
+    }
+
+    /**
+     * 코스 장소에서 카드가 쓰는 값 하나를 동선 순서(Day 1 다음 Day 2)로 모은다.
+     *
+     * <p>목록 카드가 장소 이름과 사진을 표시하는데, 이 값들이 코스 스냅샷 안에만 있으면
+     * 카드마다 코스 조회를 한 번씩 더 해야 한다. 그래서 저장 시점에 함께 복사해 둔다.
+     * {@code regionArea}·{@code imageUrl}·{@code reason}과 같은 이유다.
+     *
+     * <p><b>값이 없는 장소도 자리를 비워 담는다.</b> 그래서 이름 목록과 사진 목록은 길이가 같고
+     * 같은 자리가 같은 장소를 가리킨다. 사진 없는 장소를 여기서 빼버리면 몇 번째 장소의 사진인지가
+     * 사라져, 이름과 사진을 짝지어 표시하는 선택지가 없어진다.
+     * 무엇을 보여줄지 고르는 일은 {@link SavedTripResponse}가 한다.
+     *
+     * <p>{@code null}을 담아야 하므로 {@code toList()}가 아니라 {@code Collectors.toList()}를 쓴다.
+     */
+    private static List<String> spotFieldOf(CourseSnapshot snapshot,
+                                            Function<SpotSummary, String> field) {
+        return Stream.concat(
+                        nullSafe(snapshot.day1()).stream(),
+                        nullSafe(snapshot.day2()).stream())
+                .map(field)
+                .collect(Collectors.toList());
+    }
+
+    /** {@code POST /courses} 이전 형식의 스냅샷에는 Day가 비어 있을 수 있다. */
+    private static List<SpotSummary> nullSafe(List<SpotSummary> spots) {
+        return spots == null ? List.of() : spots;
     }
 
     /**
@@ -73,9 +107,13 @@ public class SavedTripService {
      * 쓰지 않는 이유는, 그 사이에 항목이 늘거나 줄면 개수와 실제 페이지가 어긋나기 때문이다.
      * 더 읽힌 한 행은 응답에서 잘라내고 "다음 페이지 있음"의 근거로만 쓴다.
      *
-     * <p>목록은 {@code saved_trips} 행만 읽고 코스 스냅샷은 건드리지 않는다. 코스 내용은
-     * 항목을 눌렀을 때 코스 조회로 가져간다. 그래서 이 경로에는 역직렬화가 없고,
-     * 항목 하나가 깨져 목록 전체가 실패하는 경우도 없다. ({@code docs/api-contract.md} §6)
+     * <p>목록은 {@code saved_trips} 행만 읽고 코스 스냅샷은 건드리지 않는다. 그래서 이 경로에는
+     * 역직렬화가 없고, 항목 하나가 깨져 목록 전체가 실패하는 경우도 없다.
+     * ({@code docs/api-contract.md} §6)
+     *
+     * <p>카드에 필요한 값(지역 소재지·대표 이미지·추천 이유·대표 장소 이름)은 저장 시점에
+     * {@code saved_trips} 컬럼으로 복사해 둔 것을 쓴다. 코스 본문은 항목을 눌렀을 때
+     * 코스 조회로 가져간다.
      */
     SavedTripListResponse findPage(String deviceId, String encodedCursor, int size) {
         // 비어 있는 커서는 없는 것과 같게 다룬다. 클라이언트가 null 커서를 빈 문자열로

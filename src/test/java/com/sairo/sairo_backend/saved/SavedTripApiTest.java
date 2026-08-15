@@ -226,6 +226,92 @@ class SavedTripApiTest extends IntegrationTestBase {
     }
 
     /**
+     * 카드에 표시할 장소 이름이 저장 응답에 담긴다. (#76)
+     *
+     * <p>이름은 Day 1 다음 Day 2 순서이고 <b>카드가 표시할 만큼만</b> 나온다.
+     * 코스에 장소가 셋이어도 둘까지다. 전체는 코스 조회로 가져간다.
+     */
+    @Test
+    void save_fromCourseWithSpots_includesCardSpotNames() throws Exception {
+        String courseId = insertCourseWithSpots(DEVICE_A, List.of("장소A", "장소B"), List.of("장소C"));
+
+        mockMvc.perform(saveRequest(DEVICE_A, courseId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.spotNames.length()").value(2))
+                .andExpect(jsonPath("$.spotNames[0]").value("장소A"))
+                .andExpect(jsonPath("$.spotNames[1]").value("장소B"));
+    }
+
+    /**
+     * 카드 썸네일 두 장이 저장 응답에 담긴다. (#76)
+     *
+     * <p>카드는 사진을 두 장 겹쳐 표시한다. 코스에 사진이 더 있어도 두 장까지다.
+     */
+    @Test
+    void save_fromCourseWithSpots_includesCardImageUrls() throws Exception {
+        String courseId = insertCourseWithSpots(DEVICE_A, List.of("장소A", "장소B"), List.of("장소C"));
+
+        mockMvc.perform(saveRequest(DEVICE_A, courseId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.spotImageUrls.length()").value(2))
+                .andExpect(jsonPath("$.spotImageUrls[0]").value("https://example.com/장소A.jpg"))
+                .andExpect(jsonPath("$.spotImageUrls[1]").value("https://example.com/장소B.jpg"));
+    }
+
+    /**
+     * 사진이 없는 장소는 건너뛰고 다음 장소의 사진을 쓴다. (Q-10)
+     *
+     * <p>TourAPI 장소에는 사진이 없는 것이 섞여 있다. 자리를 비워두면 카드 썸네일이 한 장만 찬다.
+     *
+     * <p>그 결과 <b>응답의</b> {@code spotImageUrls}와 {@code spotNames}는 짝이 아니다. 여기서
+     * 이름 앞 두 개는 장소A·장소B지만 사진 앞 두 장은 장소A·장소C의 것이다.
+     * 카드가 둘을 짝지어 표시해야 한다면 이 동작을 바꿔야 하므로 명시적으로 고정한다.
+     *
+     * <p><b>저장된 값은 자리가 맞는다.</b> 건너뛰는 것은 응답을 만들 때뿐이라, 정책을 바꿀 때
+     * 백필이 필요 없다. 아래에서 컬럼까지 확인하는 이유다.
+     */
+    @Test
+    void save_fromCourseWithSpotMissingImage_skipsItAndDoesNotPairWithNames() throws Exception {
+        String courseId = insertCourseJson(DEVICE_A,
+                "[" + spotJson("장소A", "https://example.com/a.jpg")
+                        + "," + spotJson("장소B", null) + "]",
+                "[" + spotJson("장소C", "https://example.com/c.jpg") + "]");
+
+        String body = mockMvc.perform(saveRequest(DEVICE_A, courseId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.spotNames[0]").value("장소A"))
+                .andExpect(jsonPath("$.spotNames[1]").value("장소B"))
+                .andExpect(jsonPath("$.spotImageUrls.length()").value(2))
+                .andExpect(jsonPath("$.spotImageUrls[0]").value("https://example.com/a.jpg"))
+                .andExpect(jsonPath("$.spotImageUrls[1]").value("https://example.com/c.jpg"))
+                .andReturn().getResponse().getContentAsString();
+
+        // 컬럼에는 장소 하나가 한 자리씩, 사진 없는 장소는 그 자리가 null이다.
+        String savedTripId = extract(body, "savedTripId");
+        assertThat(columnOf(savedTripId, "spot_names"))
+                .containsExactly("장소A", "장소B", "장소C");
+        assertThat(columnOf(savedTripId, "spot_image_urls"))
+                .containsExactly("https://example.com/a.jpg", null, "https://example.com/c.jpg");
+    }
+
+    /**
+     * 장소가 없는 코스는 빈 배열이다. {@code null}이 아니다.
+     *
+     * <p>필드를 빼거나 {@code null}로 주면 클라이언트가 목록 렌더링에서 분기를 하나 더 써야 한다.
+     */
+    @Test
+    void save_fromCourseWithoutSpots_returnsEmptySpotNames() throws Exception {
+        String courseId = insertCourse(DEVICE_A);
+
+        mockMvc.perform(saveRequest(DEVICE_A, courseId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.spotNames").isArray())
+                .andExpect(jsonPath("$.spotNames").isEmpty())
+                .andExpect(jsonPath("$.spotImageUrls").isArray())
+                .andExpect(jsonPath("$.spotImageUrls").isEmpty());
+    }
+
+    /**
      * 저장된 코스 스냅샷을 읽지 못하면 500 INTERNAL_ERROR다.
      *
      * <p>컨트롤러가 이 500을 명세에 적었으므로 실제로 그 코드가 나오는지 고정한다.
@@ -277,6 +363,27 @@ class SavedTripApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.items[0].regionName").value("경북"))
                 .andExpect(jsonPath("$.items[0].courseId").value(courseId))
                 .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+    }
+
+    /**
+     * 목록 항목이 카드에 필요한 장소 이름을 함께 준다. (#76)
+     *
+     * <p>이게 없으면 목록 화면이 카드마다 {@code GET /courses/&#123;courseId&#125;}를 한 번씩 더 불러야 한다.
+     * 목록 조회는 {@code courses}를 조인하지 않으므로, 값은 저장 시점에 복사된 것이 나온다.
+     */
+    @Test
+    void findPage_includesCardSpotNamesAndImages() throws Exception {
+        String courseId = insertCourseWithSpots(DEVICE_A, List.of("덕양서원(의성)", "연일향교"), List.of("장소C"));
+        mockMvc.perform(saveRequest(DEVICE_A, courseId)).andExpect(status().isCreated());
+
+        mockMvc.perform(listRequest(DEVICE_A, null, null))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].spotNames.length()").value(2))
+                .andExpect(jsonPath("$.items[0].spotNames[0]").value("덕양서원(의성)"))
+                .andExpect(jsonPath("$.items[0].spotNames[1]").value("연일향교"))
+                .andExpect(jsonPath("$.items[0].spotImageUrls.length()").value(2))
+                .andExpect(jsonPath("$.items[0].spotImageUrls[0]").value("https://example.com/덕양서원(의성).jpg"));
     }
 
     /**
@@ -692,6 +799,32 @@ class SavedTripApiTest extends IntegrationTestBase {
         return courseId;
     }
 
+    /** Day별 장소 이름을 정해 코스 스냅샷을 직접 넣는다. 모든 장소에 사진이 있다. */
+    private String insertCourseWithSpots(String deviceId, List<String> day1, List<String> day2) {
+        return insertCourseJson(deviceId, spotsJson(day1), spotsJson(day2));
+    }
+
+    private String insertCourseJson(String deviceId, String day1Json, String day2Json) {
+        String courseId = UUID.randomUUID().toString();
+        jdbcTemplate.update(
+                "INSERT INTO courses (course_id, device_id, course_data) VALUES (?, ?, ?::jsonb)",
+                courseId, deviceId,
+                "{\"regionName\":\"제주도\",\"day1\":" + day1Json + ",\"day2\":" + day2Json + "}");
+        return courseId;
+    }
+
+    private String spotsJson(List<String> names) {
+        return names.stream()
+                .map(name -> spotJson(name, "https://example.com/" + name + ".jpg"))
+                .collect(java.util.stream.Collectors.joining(",", "[", "]"));
+    }
+
+    /** {@code imageUrl}이 {@code null}이면 사진이 없는 장소다. TourAPI 데이터에 실제로 섞여 있다. */
+    private String spotJson(String name, String imageUrl) {
+        return "{\"spotId\":\"spot-" + name + "\",\"name\":\"" + name + "\",\"imageUrl\":"
+                + (imageUrl == null ? "null" : "\"" + imageUrl + "\"") + "}";
+    }
+
     /**
      * ID를 서버가 발급하는 형식(소문자 UUID v4)으로 넣고 그 값을 돌려준다.
      *
@@ -755,6 +888,14 @@ class SavedTripApiTest extends IntegrationTestBase {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return extract(body, "courseId");
+    }
+
+    /** {@code null} 원소가 그대로 들어오므로 {@code Arrays.asList}로 받는다. */
+    private List<String> columnOf(String savedTripId, String column) {
+        return jdbcTemplate.queryForObject(
+                "SELECT " + column + " FROM saved_trips WHERE saved_trip_id = ?",
+                (rs, rowNum) -> java.util.Arrays.asList((String[]) rs.getArray(column).getArray()),
+                savedTripId);
     }
 
     private Integer savedTripCount(String deviceId) {

@@ -23,6 +23,8 @@
 | **코스 스냅샷** | 지역과 Day 1·Day 2를 함께 담아 저장하는 형태 | `CourseSnapshot`, `course_data` |
 | **저장 여행지** | 사용자가 저장한 추천 지역과 그 시점의 코스 | `saved_trips` 테이블, `SavedTrip`, `savedTripId` |
 | **코스 지문** | 코스의 내용을 요약해 중복 저장을 판정하는 값 | `CourseFingerprint`, `course_fingerprint` |
+| **대표 장소 이름** | 저장 목록 카드에 표시하는 코스 앞부분의 장소 이름. 코스의 장소 전부가 아니다 | `spotNames`, `spot_names` |
+| **카드 썸네일** | 저장 목록 카드에 겹쳐 표시하는 코스 장소 사진. 응답에서는 사진 없는 장소를 건너뛰어 대표 장소 이름과 짝이 아니다 | `spotImageUrls`, `spot_image_urls` |
 | **공유 코스** | 공유 시점의 지역과 코스를 담은 읽기 전용 스냅샷 | `shared_courses`, `shareId` |
 | **익명 사용자 ID** | 로그인 없이 사용자를 구분하는 기기 생성 UUID v4 | `X-Device-Id` 헤더, `@DeviceId` 파라미터, `DEVICE_ID_*` 오류 코드 |
 

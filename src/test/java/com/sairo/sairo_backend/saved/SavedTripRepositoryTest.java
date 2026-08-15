@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -82,9 +83,38 @@ class SavedTripRepositoryTest extends IntegrationTestBase {
         assertThat(rowCount()).isEqualTo(1);
     }
 
+    /**
+     * 충돌하면 카드 값도 <b>최초 저장 시점의 것</b>이 남는다.
+     *
+     * <p>지문이 같아도 스냅샷이 같다는 뜻은 아니다. 장소 마스터가 바뀐 뒤 만든 코스는 이름과
+     * 사진이 달라도 같은 항목으로 보고, 남는 것은 처음 저장한 쪽이다. (ADR 0011)
+     *
+     * <p>이 동작은 {@code ON CONFLICT DO UPDATE}가 {@code device_id}만 덮는 데서 나온다.
+     * 나중에 누가 "충돌 시 카드 값도 갱신하자"며 {@code SET spot_names = EXCLUDED.spot_names}를
+     * 더해도, 서로 다른 값으로 두 번 저장해보지 않으면 알아챌 수 없다.
+     */
+    @Test
+    void save_withIdenticalKey_keepsFirstSavedCardValues() {
+        SavedTrip first = save("제주도", FINGERPRINT,
+                List.of("처음 이름"), List.of("https://example.com/first.jpg"));
+        SavedTrip second = save("제주도", FINGERPRINT,
+                List.of("나중 이름"), List.of("https://example.com/second.jpg"));
+
+        assertThat(second.savedTripId()).isEqualTo(first.savedTripId());
+        assertThat(second.spotNames()).containsExactly("처음 이름");
+        assertThat(second.spotImageUrls()).containsExactly("https://example.com/first.jpg");
+        assertThat(rowCount()).isEqualTo(1);
+    }
+
     private SavedTrip save(String regionKey, String fingerprint) {
+        return save(regionKey, fingerprint, List.of(), List.of());
+    }
+
+    private SavedTrip save(String regionKey, String fingerprint,
+                           List<String> spotNames, List<String> spotImageUrls) {
         return savedTripRepository.save(
-                UUID.randomUUID().toString(), DEVICE, courseId, regionKey, fingerprint, null, null, null);
+                UUID.randomUUID().toString(), DEVICE, courseId, regionKey, fingerprint,
+                null, null, null, spotNames, spotImageUrls);
     }
 
     private Integer rowCount() {
