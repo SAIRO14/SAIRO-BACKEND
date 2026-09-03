@@ -128,6 +128,38 @@ class CourseApiTest extends IntegrationTestBase {
         return order.toString();
     }
 
+    /**
+     * 지리적으로 두 클러스터로 나뉜 스팟은 클러스터 경계에서 잘려야 한다.
+     *
+     * <p>서쪽 3개(lng≈128)와 동쪽 2개(lng≈129.5)를 넣으면 NN 경로 상
+     * 최대 간격이 서-동 경계에 생긴다. max-gap split이 없으면 size/2=2로 잘려
+     * day2에 서쪽 1개와 동쪽 2개가 섞인다.
+     */
+    @Test
+    void buildCourse_withGeographicallySeparatedSpots_splitsAtMaxGap() throws Exception {
+        jdbcTemplate.update("INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?,?,?,?,?)",
+                "w1", "서쪽1", "경주", 35.80, 128.00);
+        jdbcTemplate.update("INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?,?,?,?,?)",
+                "w2", "서쪽2", "경주", 35.85, 128.10);
+        jdbcTemplate.update("INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?,?,?,?,?)",
+                "w3", "서쪽3", "경주", 35.90, 128.00);
+        jdbcTemplate.update("INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?,?,?,?,?)",
+                "e1", "동쪽1", "경주", 35.80, 129.50);
+        jdbcTemplate.update("INSERT INTO spots (spot_id, name, region_name, lat, lng) VALUES (?,?,?,?,?)",
+                "e2", "동쪽2", "경주", 35.85, 129.60);
+
+        // 서쪽 3개가 1일차, 동쪽 2개가 2일차로 묶여야 한다
+        mockMvc.perform(post("/courses")
+                        .header("X-Device-Id", DEVICE_A)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"regionName": "경주", "spotIds": ["w1","w2","w3","e1","e2"]}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.day1.length()").value(3))
+                .andExpect(jsonPath("$.day2.length()").value(2));
+    }
+
     @Test
     void buildCourse_withTooFewSpots_returns400() throws Exception {
         mockMvc.perform(post("/courses")

@@ -53,9 +53,9 @@ public class CourseService {
     public CourseResponse buildFromSpots(String deviceId, String regionName, List<Spot> spots,
                                          String regionArea, String imageUrl, String reason) {
         List<Spot> sorted = sortByNearestNeighbor(spots);
-        int mid = sorted.size() / 2;
-        List<SpotSummary> day1 = sorted.subList(0, mid).stream().map(SpotSummary::from).collect(Collectors.toList());
-        List<SpotSummary> day2 = sorted.subList(mid, sorted.size()).stream().map(SpotSummary::from).collect(Collectors.toList());
+        int split = maxGapSplitIndex(sorted);
+        List<SpotSummary> day1 = sorted.subList(0, split).stream().map(SpotSummary::from).collect(Collectors.toList());
+        List<SpotSummary> day2 = sorted.subList(split, sorted.size()).stream().map(SpotSummary::from).collect(Collectors.toList());
         String courseId = UUID.randomUUID().toString();
         CourseSnapshot snapshot = new CourseSnapshot(regionName, regionArea, imageUrl, reason, day1, day2);
         courseRepository.save(courseId, deviceId, objectMapper.writeValueAsString(snapshot));
@@ -202,5 +202,23 @@ public class CourseService {
         double dlat = a.getLat() - b.getLat();
         double dlng = a.getLng() - b.getLng();
         return dlat * dlat + dlng * dlng;
+    }
+
+    // NN 경로 상 연속된 두 스팟 사이 거리가 가장 큰 지점에서 자른다.
+    // 좌표 없는 스팟은 항상 뒤에 배치되므로 경계 비교에서 제외한다.
+    // 모든 스팟에 좌표가 없거나 스팟이 1개이면 size/2로 폴백한다.
+    private int maxGapSplitIndex(List<Spot> sorted) {
+        int best = sorted.size() / 2;
+        double maxDist = -1;
+        for (int i = 0; i < sorted.size() - 1; i++) {
+            Spot a = sorted.get(i), b = sorted.get(i + 1);
+            if (a.getLat() == null || b.getLat() == null) break;
+            double d = euclidean(a, b);
+            if (d > maxDist) {
+                maxDist = d;
+                best = i + 1;
+            }
+        }
+        return best;
     }
 }
