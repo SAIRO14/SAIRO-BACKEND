@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Sairo 사진 관리</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: sans-serif; background: #111; color: #eee; padding: 16px; }
+  h1 { font-size: 18px; margin-bottom: 12px; }
+  #status { font-size: 13px; color: #aaa; margin-bottom: 12px; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .card { background: #222; border-radius: 6px; overflow: hidden; position: relative; }
+  .card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+  .card .info { padding: 6px 8px; font-size: 11px; color: #bbb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .del { position: absolute; top: 4px; right: 4px; background: rgba(200,0,0,0.85); color: #fff;
+    border: none; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+  .card .del:hover { background: #c00; }
+  .card.deleted { opacity: 0.2; pointer-events: none; }
+  #pagination { margin-top: 16px; display: flex; gap: 8px; align-items: center; }
+  #pagination button { background: #333; color: #eee; border: none; border-radius: 4px;
+    padding: 6px 14px; cursor: pointer; font-size: 13px; }
+  #pagination button:disabled { opacity: 0.3; cursor: default; }
+  #pagination span { font-size: 13px; color: #aaa; }
+</style>
+</head>
+<body>
+<h1>사진 관리</h1>
+<div id="status">불러오는 중...</div>
+<div id="grid"></div>
+<div id="pagination">
+  <button id="prev" onclick="load(page-1)">이전</button>
+  <span id="pageInfo"></span>
+  <button id="next" onclick="load(page+1)">다음</button>
+</div>
+
+<script>
+let page = 0;
+
+async function load(p) {
+  page = p;
+  const res = await fetch(`/admin/photos?page=${page}&size=48`);
+  if (!res.ok) { document.getElementById('status').textContent = '불러오기 실패'; return; }
+  const data = await res.json();
+
+  document.getElementById('status').textContent =
+    `전체 ${data.totalElements}장 · 페이지 ${data.currentPage + 1} / ${data.totalPages}`;
+  document.getElementById('pageInfo').textContent = `${data.currentPage + 1} / ${data.totalPages}`;
+  document.getElementById('prev').disabled = data.currentPage === 0;
+  document.getElementById('next').disabled = data.currentPage >= data.totalPages - 1;
+
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (const photo of data.photos) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'card-' + photo.id;
+    card.innerHTML = `
+      <img src="${photo.imageUrl}" loading="lazy" onerror="this.style.background='#333';this.removeAttribute('src')">
+      <div class="info" title="${photo.title}">${photo.title}</div>
+      <div class="info" style="color:#888" title="${photo.location || '위치 없음'}">${photo.location || '위치 없음'}</div>
+      <button class="del" onclick="del('${photo.id}')">삭제</button>
+    `;
+    grid.appendChild(card);
+  }
+}
+
+async function del(id) {
+  if (!confirm('삭제하시겠습니까?')) return;
+  const res = await fetch(`/admin/photos/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (res.ok || res.status === 204) {
+    const card = document.getElementById('card-' + id);
+    if (card) card.classList.add('deleted');
+  } else {
+    alert('삭제 실패: ' + res.status);
+  }
+}
+
+load(0);
+</script>
+</body>
+</html>
