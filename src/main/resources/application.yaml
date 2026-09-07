@@ -61,6 +61,11 @@ logging:
   pattern:
     level: "%5p [%X{traceId:-}]"
 
+app:
+  # 어드민 보드 접근 비밀번호. ADMIN_TOKEN 환경변수로 주입한다.
+  # 미설정 시 /admin/** 전체가 503으로 비활성화된다.
+  admin-token: ${ADMIN_TOKEN:}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
